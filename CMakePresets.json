@@ -1,0 +1,197 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 28, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": { "CMAKE_EXPORT_COMPILE_COMMANDS": "ON" }
+    },
+    {
+      "name": "config-dev",
+      "hidden": true,
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "NEXYL_LINKAGE": "Dynamic" }
+    },
+    {
+      "name": "config-release",
+      "hidden": true,
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release", "NEXYL_LINKAGE": "Static" }
+    },
+    {
+      "name": "host-windows",
+      "hidden": true,
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+    },
+    {
+      "name": "host-linux",
+      "hidden": true,
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" }
+    },
+    {
+      "name": "host-macos",
+      "hidden": true,
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Darwin" }
+    },
+    {
+      "name": "win-x64-dev",
+      "displayName": "Windows x64, MSVC, debug, dynamic modules",
+      "inherits": ["base", "host-windows", "config-dev"],
+      "cacheVariables": { "CMAKE_CXX_COMPILER": "cl" }
+    },
+    {
+      "name": "win-x64-release",
+      "displayName": "Windows x64, MSVC, release, static modules",
+      "inherits": ["base", "host-windows", "config-release"],
+      "cacheVariables": { "CMAKE_CXX_COMPILER": "cl" }
+    },
+    {
+      "name": "win-x64-clang-dev",
+      "displayName": "Windows x64, clang-cl, debug, dynamic modules",
+      "inherits": ["base", "host-windows", "config-dev"],
+      "cacheVariables": { "CMAKE_CXX_COMPILER": "clang-cl" }
+    },
+    {
+      "name": "linux-x64-dev",
+      "displayName": "Linux x64, Clang, debug, dynamic modules",
+      "inherits": ["base", "host-linux", "config-dev"],
+      "cacheVariables": { "CMAKE_CXX_COMPILER": "clang++" }
+    },
+    {
+      "name": "linux-x64-release",
+      "displayName": "Linux x64, Clang, release, static modules",
+      "inherits": ["base", "host-linux", "config-release"],
+      "cacheVariables": { "CMAKE_CXX_COMPILER": "clang++" }
+    },
+    {
+      "name": "linux-x64-gcc-dev",
+      "displayName": "Linux x64, GCC, debug, dynamic modules",
+      "inherits": ["base", "host-linux", "config-dev"],
+      "cacheVariables": { "CMAKE_CXX_COMPILER": "g++" }
+    },
+    {
+      "name": "linux-x64-asan",
+      "displayName": "Linux x64, Clang, address and undefined-behaviour sanitizers",
+      "inherits": ["base", "host-linux"],
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_BUILD_TYPE": "Debug",
+        "NEXYL_LINKAGE": "Static",
+        "NEXYL_SANITIZER": "Address"
+      }
+    },
+    {
+      "name": "macos-arm64-dev",
+      "displayName": "macOS ARM64, Apple Clang, debug, dynamic modules",
+      "inherits": ["base", "host-macos", "config-dev"]
+    },
+    {
+      "name": "macos-arm64-release",
+      "displayName": "macOS ARM64, Apple Clang, release, static modules",
+      "inherits": ["base", "host-macos", "config-release"]
+    }
+  ],
+  "buildPresets": [
+    { "name": "win-x64-dev", "configurePreset": "win-x64-dev" },
+    { "name": "win-x64-release", "configurePreset": "win-x64-release" },
+    { "name": "win-x64-clang-dev", "configurePreset": "win-x64-clang-dev" },
+    { "name": "linux-x64-dev", "configurePreset": "linux-x64-dev" },
+    { "name": "linux-x64-release", "configurePreset": "linux-x64-release" },
+    { "name": "linux-x64-gcc-dev", "configurePreset": "linux-x64-gcc-dev" },
+    { "name": "linux-x64-asan", "configurePreset": "linux-x64-asan" },
+    { "name": "macos-arm64-dev", "configurePreset": "macos-arm64-dev" },
+    { "name": "macos-arm64-release", "configurePreset": "macos-arm64-release" }
+  ],
+  "testPresets": [
+    {
+      "name": "test-base",
+      "hidden": true,
+      "output": { "outputOnFailure": true },
+      "execution": { "noTestsAction": "error" }
+    },
+    { "name": "win-x64-dev", "configurePreset": "win-x64-dev", "inherits": "test-base" },
+    { "name": "win-x64-release", "configurePreset": "win-x64-release", "inherits": "test-base" },
+    { "name": "win-x64-clang-dev", "configurePreset": "win-x64-clang-dev", "inherits": "test-base" },
+    { "name": "linux-x64-dev", "configurePreset": "linux-x64-dev", "inherits": "test-base" },
+    { "name": "linux-x64-release", "configurePreset": "linux-x64-release", "inherits": "test-base" },
+    { "name": "linux-x64-gcc-dev", "configurePreset": "linux-x64-gcc-dev", "inherits": "test-base" },
+    { "name": "linux-x64-asan", "configurePreset": "linux-x64-asan", "inherits": "test-base" },
+    { "name": "macos-arm64-dev", "configurePreset": "macos-arm64-dev", "inherits": "test-base" },
+    { "name": "macos-arm64-release", "configurePreset": "macos-arm64-release", "inherits": "test-base" }
+  ],
+  "workflowPresets": [
+    {
+      "name": "win-x64-dev",
+      "steps": [
+        { "type": "configure", "name": "win-x64-dev" },
+        { "type": "build", "name": "win-x64-dev" },
+        { "type": "test", "name": "win-x64-dev" }
+      ]
+    },
+    {
+      "name": "win-x64-release",
+      "steps": [
+        { "type": "configure", "name": "win-x64-release" },
+        { "type": "build", "name": "win-x64-release" },
+        { "type": "test", "name": "win-x64-release" }
+      ]
+    },
+    {
+      "name": "win-x64-clang-dev",
+      "steps": [
+        { "type": "configure", "name": "win-x64-clang-dev" },
+        { "type": "build", "name": "win-x64-clang-dev" },
+        { "type": "test", "name": "win-x64-clang-dev" }
+      ]
+    },
+    {
+      "name": "linux-x64-dev",
+      "steps": [
+        { "type": "configure", "name": "linux-x64-dev" },
+        { "type": "build", "name": "linux-x64-dev" },
+        { "type": "test", "name": "linux-x64-dev" }
+      ]
+    },
+    {
+      "name": "linux-x64-release",
+      "steps": [
+        { "type": "configure", "name": "linux-x64-release" },
+        { "type": "build", "name": "linux-x64-release" },
+        { "type": "test", "name": "linux-x64-release" }
+      ]
+    },
+    {
+      "name": "linux-x64-gcc-dev",
+      "steps": [
+        { "type": "configure", "name": "linux-x64-gcc-dev" },
+        { "type": "build", "name": "linux-x64-gcc-dev" },
+        { "type": "test", "name": "linux-x64-gcc-dev" }
+      ]
+    },
+    {
+      "name": "linux-x64-asan",
+      "steps": [
+        { "type": "configure", "name": "linux-x64-asan" },
+        { "type": "build", "name": "linux-x64-asan" },
+        { "type": "test", "name": "linux-x64-asan" }
+      ]
+    },
+    {
+      "name": "macos-arm64-dev",
+      "steps": [
+        { "type": "configure", "name": "macos-arm64-dev" },
+        { "type": "build", "name": "macos-arm64-dev" },
+        { "type": "test", "name": "macos-arm64-dev" }
+      ]
+    },
+    {
+      "name": "macos-arm64-release",
+      "steps": [
+        { "type": "configure", "name": "macos-arm64-release" },
+        { "type": "build", "name": "macos-arm64-release" },
+        { "type": "test", "name": "macos-arm64-release" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+# Line endings: LF in the repository and in the working tree on every platform.
+# See docs/CODING_STANDARDS.md, section 18.
+* text=auto eol=lf
+
+# Windows command scripts require CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf

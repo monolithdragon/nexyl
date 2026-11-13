@@ -1,0 +1,47 @@
+# Nexyl formatting rules. Authoritative for docs/CODING_STANDARDS.md, section 18.
+---
+Language: Cpp
+BasedOnStyle: LLVM
+Standard: Latest
+
+# Indentation and width
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 120
+AccessModifierOffset: -4
+NamespaceIndentation: None
+IndentCaseLabels: true
+
+# Braces: attached, and always present
+BreakBeforeBraces: Attach
+InsertBraces: true
+AllowShortBlocksOnASingleLine: Empty
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortEnumsOnASingleLine: true
+AllowShortLambdasOnASingleLine: All
+
+# Pointers and references bind to the type
+PointerAlignment: Left
+ReferenceAlignment: Pointer
+DerivePointerAlignment: false
+
+# Declarations
+AlwaysBreakTemplateDeclarations: Yes
+AlignConsecutiveDeclarations: None
+AlignConsecutiveAssignments: None
+AlignTrailingComments: true
+FixNamespaceComments: true
+SpaceAfterTemplateKeyword: true
+MaxEmptyLinesToKeep: 1
+
+# Includes: order within a block is sorted; the blocks themselves follow rule HDR-5 and are kept as written
+SortIncludes: CaseSensitive
+IncludeBlocks: Preserve
+
+# Files
+LineEnding: LF
+InsertNewlineAtEOF: true
+...

@@ -1,0 +1,103 @@
+# Continuous integration for Nexyl.
+#
+# All logic lives in the CMake presets and in the provider-independent scripts under Scripts/ci/.
+# This file only provisions toolchains and then calls the entry point developers use locally:
+#
+#     python Scripts/ci/run_workflow.py <preset>
+#
+# NOTE: this workflow has not been executed on a runner yet; the repository had no remote when it was written.
+# It passes actionlint, and the presets and scripts it calls were verified locally on Windows (MSVC, clang-cl)
+# and Linux (Clang, GCC). The toolchain installation steps are the untested part.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Must equal REQUIRED_LLVM_MAJOR in Scripts/ci/nexyl_ci.py; a self-test compares the two.
+  # The formatting and static-analysis gates accept only this version of clang-format and clang-tidy.
+  NEXYL_LLVM_VERSION: "23"
+
+jobs:
+  build:
+    name: ${{ matrix.preset }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-2025, preset: win-x64-dev }
+          - { os: windows-2025, preset: win-x64-release }
+          # The Linux Clang job is the one that must run the formatting and static-analysis gates.
+          # On every other job those two gates run only if the pinned tool version happens to be present.
+          - { os: ubuntu-24.04, preset: linux-x64-dev, gate_tools: required }
+          - { os: ubuntu-24.04, preset: linux-x64-release }
+          - { os: ubuntu-24.04, preset: linux-x64-gcc-dev }
+          - { os: ubuntu-24.04, preset: linux-x64-asan }
+          - { os: macos-15, preset: macos-arm64-dev }
+          - { os: macos-15, preset: macos-arm64-release }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install toolchain (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build g++-14
+          wget -qO llvm.sh https://apt.llvm.org/llvm.sh
+          sudo bash llvm.sh "${NEXYL_LLVM_VERSION}"
+          sudo apt-get install -y "clang-format-${NEXYL_LLVM_VERSION}" "clang-tidy-${NEXYL_LLVM_VERSION}"
+
+          # The presets name the compilers 'clang++' and 'g++'. Put links with exactly those names first
+          # on PATH, so the result does not depend on what the runner image preinstalls.
+          tools="${HOME}/nexyl-tools"
+          mkdir -p "${tools}"
+          for tool in clang++ clang-format clang-tidy; do
+            ln -sf "/usr/bin/${tool}-${NEXYL_LLVM_VERSION}" "${tools}/${tool}"
+          done
+          ln -sf /usr/bin/g++-14 "${tools}/g++"
+          echo "${tools}" >> "${GITHUB_PATH}"
+
+      - name: Install toolchain (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ninja
+
+      - name: Install toolchain (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ninja --no-progress -y
+
+      - name: Show tool versions
+        shell: bash
+        run: |
+          cmake --version | head -n 1
+          ninja --version
+          python --version
+
+      - name: Configure, build, test and run gates
+        env:
+          NEXYL_REQUIRE_GATE_TOOLS: ${{ matrix.gate_tools == 'required' && '1' || '' }}
+        run: python Scripts/ci/run_workflow.py ${{ matrix.preset }}
+
+      # The conformance report feeds rule LANG-3: a pending C++23 feature is admitted once every toolchain passes.
+      - name: Upload compiler-conformance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: conformance-${{ matrix.preset }}
+          path: build/${{ matrix.preset }}/nexyl_conformance.json
+          if-no-files-found: ignore

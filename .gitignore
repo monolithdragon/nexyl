@@ -1,0 +1,14 @@
+# Build trees (one per CMake preset)
+/build/
+
+# Local, per-developer CMake presets
+CMakeUserPresets.json
+
+# IDE state
+.vs/
+.idea/
+*.user
+
+# Python caches from the CI scripts
+__pycache__/
+*.pyc
