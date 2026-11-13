@@ -136,6 +136,16 @@ After changing a manifest or adding a file, configure again before trusting a ga
 
 Verified so far on Windows (MSVC 19.51, clang-cl 23) and on Linux (Clang 19, GCC 14.2). The macOS presets have not been run yet. The CI workflow in `.github/workflows/ci.yml` passes actionlint but has never executed on a runner.
 
+## Branches
+
+| Branch | Purpose |
+|---|---|
+| `main` | Released state. Changes arrive only by merging `development`. |
+| `development` | Integration branch. Every feature branch is created from it and merged back into it. |
+| `<area>/<short-name>` | One feature branch per change, for example `ci/development-branch` or `memory/tlsf-allocator`. |
+
+Never commit directly to `main` or `development`. Merge a feature branch into `development` only when the definition of done below holds, using `git merge --no-ff` so the feature stays visible in the history. Merging `development` into `main` is the user's decision.
+
 ## Definition of done
 
 A change is done when all of the following hold:
