@@ -134,13 +134,13 @@ python Scripts/ci/check_format.py --repo . --fix    # reformat sources
 
 After changing a manifest or adding a file, configure again before trusting a gate: the gates read the module graph written at configure time.
 
-Verified so far on Windows (MSVC 19.51, clang-cl 23) and on Linux (Clang 19, GCC 14.2). The macOS presets have not been run yet. The CI workflow in `.github/workflows/ci.yml` passes actionlint but has never executed on a runner.
+Verified locally on Windows (MSVC 19.51, clang-cl 23) and Linux (Clang 19, GCC 14.2). The CI workflow in `.github/workflows/ci.yml` runs all eight non-clang-cl presets on GitHub Actions, including macOS (Apple Clang 17); the formatting and static-analysis gates are required on the `linux-x64-dev` job. The `win-x64-clang-dev` preset runs only locally.
 
 ## Branches
 
 | Branch | Purpose |
 |---|---|
-| `main` | Released state. Changes arrive only by merging `development`. |
+| `main` | Released state. Protected on GitHub: changes arrive only through a pull request from `development`, with all eight CI jobs green and the branch up to date. |
 | `development` | Integration branch. Every feature branch is created from it and merged back into it. |
 | `<area>/<short-name>` | One feature branch per change, for example `ci/development-branch` or `memory/tlsf-allocator`. |
 
