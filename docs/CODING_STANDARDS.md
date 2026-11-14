@@ -275,6 +275,7 @@ Result<Mesh, Error> LoadMesh(StringView path, IAllocator& allocator) {
 | NAME-2 | Quantities are SI and carry no unit suffix. A non-SI quantity at a boundary names its unit: `timeoutMs`. | Review |
 | NAME-3 | `struct` is for passive data with public members and no invariant. Everything else is a `class`. | Review |
 | NAME-4 | Names are English, descriptive and unabbreviated except for widely known terms. | Review |
+| NAME-5 | No function, method or type is named like a Windows API macro (for example `CreateDirectory`, `DeleteFile`, `RemoveDirectory`, `LoadLibrary`, `CreateMutex`, `CopyMemory`, `Yield`). Inside files that include `<Windows.h>` such names are silently rewritten to their `A`/`W` variants, which breaks linking. | Review |
 
 Reference example:
 
