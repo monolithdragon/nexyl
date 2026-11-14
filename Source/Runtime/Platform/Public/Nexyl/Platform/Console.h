@@ -18,7 +18,9 @@ enum class ConsoleStream : u8 {
 ///
 /// The bytes are written unbuffered and unmodified, so redirection to a file or pipe works. The call is
 /// best-effort: if the stream is closed or the write fails, the remaining text is dropped, because a
-/// console failure has nowhere to be reported. The function does not allocate.
+/// console failure has nowhere to be reported. One exception on POSIX systems: writing to a pipe whose reader
+/// has exited raises SIGPIPE, which terminates the process unless the application ignores that signal.
+/// The function does not allocate.
 ///
 /// @param stream The stream to write to.
 /// @param text   The bytes to write. Borrowed for the duration of the call.

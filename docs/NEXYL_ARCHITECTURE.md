@@ -224,7 +224,7 @@ Module responsibilities in one line each:
 | Module | Responsibility |
 |---|---|
 | `Base` | Compiler and platform detection, primitive type aliases, assert/log/profile hooks, `Result`, `Option`, `Span`, the only include site of whitelisted standard headers. Allocates nothing, calls no OS function. |
-| `Platform` | Hardware abstraction: virtual memory, threads, synchronisation, files, time, dynamic libraries, sockets, windows, raw input. Its API never allocates; callers supply buffers. |
+| `Platform` | Hardware abstraction: virtual memory, threads, synchronisation, files, time, dynamic libraries, sockets, windows, raw input. Its API never allocates; callers supply buffers. Windows, raw input and sockets are added with the modules that use them (`Renderer`/`Input`, `Net`), so that their API follows real needs. |
 | `Memory` | Allocators, tags, budgets, tracking. |
 | `Math` | Deterministic scalar, vector, matrix and quaternion math, transcendental functions, SIMD abstraction. |
 | `Test` | The engine's unit-test framework: test registration, checks, runner. Uses fixed-size static storage instead of `Memory` and `Containers`, so that every module, including those two, is tested with it. |

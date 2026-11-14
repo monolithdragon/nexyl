@@ -4,10 +4,6 @@
 # This file only provisions toolchains and then calls the entry point developers use locally:
 #
 #     python Scripts/ci/run_workflow.py <preset>
-#
-# NOTE: this workflow has not been executed on a runner yet; the repository had no remote when it was written.
-# It passes actionlint, and the presets and scripts it calls were verified locally on Windows (MSVC, clang-cl)
-# and Linux (Clang, GCC). The toolchain installation steps are the untested part.
 
 name: CI
 

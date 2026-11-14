@@ -1,0 +1,166 @@
+#pragma once
+
+#include <Nexyl/Base/Error.h>
+#include <Nexyl/Base/Result.h>
+#include <Nexyl/Base/Span.h>
+#include <Nexyl/Base/Types.h>
+
+// File-system operations other than reading and writing. All paths are NUL-terminated UTF-8.
+//
+// Links (POSIX symbolic links; Windows symbolic links and junctions) behave the same on every platform:
+// GetFileInfo describes what a link points to, a directory listing never reports a link as a subdirectory,
+// RemoveFile removes the link itself, and RemoveEmptyDirectory rejects a link. MakeSymbolicLink creates one.
+// The names avoid those of Windows macros (CreateDirectory, DeleteFile, RemoveDirectory), which would rename
+// the functions inside the Windows implementation.
+
+namespace Nexyl::Platform {
+
+/// Facts about a file or directory.
+/// @since 0.1
+struct FileInfo {
+    /// Size in bytes; zero for directories.
+    u64 size = 0;
+    /// Time of the last modification, in nanoseconds since 1970-01-01 00:00 UTC. Wall-clock time:
+    /// simulation code MUST NOT use it (rule DET-6).
+    u64 modificationTime = 0;
+    /// True for a directory.
+    bool isDirectory = false;
+};
+
+/// Returns information about a file or directory. A link is followed: the result describes its target.
+///
+/// @param path The file or directory.
+/// @return Its size, modification time and type.
+/// @error NotFound Nothing exists at `path`, or it is a link whose target does not exist.
+/// @threadsafety safe
+/// @since 0.1
+[[nodiscard]] NX_PLATFORM_API Result<FileInfo, Error> GetFileInfo(const char* path);
+
+/// Deletes a file. For a link, also one to a directory, the link itself is deleted and its target is kept.
+/// @param path The file.
+/// @error NotFound The file does not exist.
+/// @error WrongFileType The path names a directory.
+/// @threadsafety safe
+/// @since 0.1
+[[nodiscard]] NX_PLATFORM_API Result<void, Error> RemoveFile(const char* path);
+
+/// Renames or moves a file within one volume, replacing a file that already exists at `to`.
+/// @param from The existing file.
+/// @param to   The new path.
+/// @error NotFound `from` does not exist.
+/// @threadsafety safe
+/// @since 0.1
+[[nodiscard]] NX_PLATFORM_API Result<void, Error> RenameFile(const char* from, const char* to);
+
+/// Creates one directory. Its parent must exist.
+/// @param path The directory to create.
+/// @error AlreadyExists Something already exists at `path`.
+/// @error NotFound The parent directory does not exist.
+/// @threadsafety safe
+/// @since 0.1
+[[nodiscard]] NX_PLATFORM_API Result<void, Error> MakeDirectory(const char* path);
+
+/// Deletes an empty directory.
+/// @param path The directory.
+/// @error DirectoryNotEmpty The directory has entries.
+/// @error NotFound The directory does not exist.
+/// @error WrongFileType The path names a file or a link; delete a link with RemoveFile.
+/// @threadsafety safe
+/// @since 0.1
+[[nodiscard]] NX_PLATFORM_API Result<void, Error> RemoveEmptyDirectory(const char* path);
+
+/// What a symbolic link points to. Windows records it in the link; POSIX ignores it.
+/// @since 0.1
+enum class LinkTargetKind : u8 {
+    /// The target is a file, or does not exist.
+    File,
+    /// The target is a directory.
+    Directory,
+};
+
+/// Creates a symbolic link at `linkPath` that points to `target`.
+///
+/// A relative `target` is resolved from the directory that holds the link, not from the current directory.
+/// The target need not exist. On Windows, creating links needs Developer Mode or the symbolic-link privilege.
+///
+/// @param target   What the link points to.
+/// @param linkPath The link to create. Its parent directory must exist.
+/// @param kind     Whether the target is a directory. Windows needs it to resolve the link; POSIX ignores it.
+/// @error AlreadyExists Something already exists at `linkPath`.
+/// @error NotFound The parent directory of `linkPath` does not exist.
+/// @error AccessDenied The operating system does not let this process create links.
+/// @threadsafety safe
+/// @since 0.1
+[[nodiscard]] NX_PLATFORM_API Result<void, Error> MakeSymbolicLink(const char* target, const char* linkPath,
+                                                                   LinkTargetKind kind);
+
+/// One entry of a directory, as returned by DirectoryIterator.
+/// @since 0.1
+struct DirectoryEntry {
+    /// Longest entry name in UTF-8 bytes. Windows names have up to 255 UTF-16 units, which is at most 765 bytes.
+    static constexpr usize kMaxNameLength = 1024;
+
+    /// The entry name, UTF-8, not NUL-terminated. Only the first `nameLength` bytes are valid.
+    char name[kMaxNameLength] = {};
+    /// Number of valid bytes in `name`.
+    usize nameLength = 0;
+    /// True for a subdirectory. A link is never a subdirectory, whatever it points to, so a recursive walk
+    /// cannot loop; GetFileInfo on the entry's path tells what the link points to.
+    bool isDirectory = false;
+
+    /// Returns the name as a span. @since 0.1
+    [[nodiscard]] Span<const char> GetName() const noexcept {
+        return Span<const char>(name, nameLength);
+    }
+};
+
+/// Lists the entries of one directory, without "." and "..", in the order the file system returns them.
+///
+/// The order is unspecified and differs between platforms: sort the names if order matters (rule DET-7).
+/// The iterator is a movable handle and allocates nothing in the engine. It releases the directory as soon as
+/// Next reports the end, or when it is destroyed.
+/// @threadsafety compatible
+/// @since 0.1
+class DirectoryIterator final {
+public:
+    /// Opens a directory for listing.
+    /// @param path The directory.
+    /// @return An iterator positioned before the first entry.
+    /// @error NotFound The directory does not exist.
+    /// @error WrongFileType The path names a file.
+    /// @threadsafety safe
+    /// @since 0.1
+    [[nodiscard]] NX_PLATFORM_API static Result<DirectoryIterator, Error> Open(const char* path);
+
+    /// Creates an iterator over nothing. @since 0.1
+    DirectoryIterator() noexcept = default;
+    /// Moves an iterator; `other` becomes empty. @since 0.1
+    NX_PLATFORM_API DirectoryIterator(DirectoryIterator&& other) noexcept;
+    /// Closes this iterator and takes over `other`. @since 0.1
+    NX_PLATFORM_API DirectoryIterator& operator=(DirectoryIterator&& other) noexcept;
+    /// Closes the directory. @since 0.1
+    NX_PLATFORM_API ~DirectoryIterator();
+
+    DirectoryIterator(const DirectoryIterator&) = delete;
+    DirectoryIterator& operator=(const DirectoryIterator&) = delete;
+
+    /// Advances to the next entry.
+    /// @param outEntry Receives the entry. Untouched when the function returns false or an error.
+    /// @return True if an entry was produced, false at the end of the directory.
+    /// @error PathTooLong An entry name does not fit DirectoryEntry::kMaxNameLength.
+    /// @error InvalidPath An entry name is not valid UTF-16 (Windows only); the listing continues after it.
+    /// @error IoError Reading the directory failed.
+    /// @since 0.1
+    [[nodiscard]] NX_PLATFORM_API Result<bool, Error> Next(DirectoryEntry& outEntry);
+
+private:
+    void Close() noexcept;
+
+    // Windows find handle or POSIX DIR*; zero when closed.
+    usize m_native = 0;
+    // Windows reports the first entry when the directory is opened; it waits here until Next is called.
+    bool m_hasPending = false;
+    DirectoryEntry m_pending;
+};
+
+} // namespace Nexyl::Platform

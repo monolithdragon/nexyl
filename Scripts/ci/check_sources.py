@@ -295,6 +295,30 @@ def _check_platform_conditionals(source: SourceFile, violations: list[Violation]
                 )
 
 
+def is_placement_new(line: str, end: int) -> bool:
+    """True when the `new` that ends at `end` is placement new: `new (address) Type`.
+
+    Placement new constructs an object in memory the caller already owns; it does not allocate. The
+    parenthesised-type form `new (Type)` does allocate, and is told apart by what follows the parentheses.
+    """
+    index = end
+    while index < len(line) and line[index] == " ":
+        index += 1
+    if index >= len(line) or line[index] != "(":
+        return False
+    depth = 0
+    while index < len(line):
+        if line[index] == "(":
+            depth += 1
+        elif line[index] == ")":
+            depth -= 1
+            if depth == 0:
+                break
+        index += 1
+    rest = line[index + 1 :].lstrip()
+    return bool(rest) and (rest[0].isalpha() or rest[0] == "_" or rest.startswith("::"))
+
+
 def _check_allocation(source: SourceFile, violations: list[Violation]) -> None:
     if source.module.name in ALLOCATION_MODULES or allows_third_party(source.module, source.area):
         return
@@ -306,6 +330,8 @@ def _check_allocation(source: SourceFile, violations: list[Violation]) -> None:
             if before.endswith("operator"):
                 continue
             if match.group(1) == "delete" and before.endswith("="):
+                continue
+            if match.group(1) == "new" and is_placement_new(line, match.end()):
                 continue
             source.flag(
                 violations,
