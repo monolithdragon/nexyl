@@ -2,7 +2,7 @@
 
 Nexyl is a modular C++23 real-time 2D/3D game and simulation engine with a self-owned runtime. The game engine ships first; industrial digital twins, training simulators and robotics build on the same runtime.
 
-**Status:** roadmap phase 0 (scaffolding). The build system, the module system and the CI gates exist. The only module is a minimal `Base`; no other engine code exists yet. The three documents below are the source of truth. If this file disagrees with them, they win, and this file must be corrected.
+**Status:** roadmap phase 1 (foundation). The build system, the module system and the CI gates exist. `Base` provides the core vocabulary: platform detection (`Config.h`), `Result`, `Error`, `Option`, `Span`, `Move`/`Forward`, and the assert and log hooks. No other module exists yet. The three documents below are the source of truth. If this file disagrees with them, they win, and this file must be corrected.
 
 ## Read before you write
 

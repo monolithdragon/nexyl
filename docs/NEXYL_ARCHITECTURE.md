@@ -350,7 +350,7 @@ flowchart TD
 
 | Would-be cycle | Resolution |
 |---|---|
-| Assert and logging need strings and I/O; strings and I/O need asserts | `Base` owns three function-pointer hooks (assert handler, log sink, profile sink). Higher modules install real implementations at startup. Any module can assert, log and profile while depending only on `Base`. |
+| Assert and logging need strings and I/O; strings and I/O need asserts | `Base` owns three function-pointer hooks (assert handler, log sink, profile sink). Higher modules install real implementations at startup. Any module can assert, log and profile while depending only on `Base`. The assert and log hooks exist; the profile hook is added with the `Profile` module in phase 2, when its event model is designed. |
 | Allocators need OS memory; OS wrappers want to allocate | `Platform` never allocates. Its functions take caller-supplied buffers and spans. |
 | Reflection needs containers; containers want to be reflected | `Reflection` sits above `Containers`. The generated reflection tables for layer 0–3 types are compiled into `Reflection` itself. |
 | Renderer wants entities; ECS wants to draw | Neither knows the other. `Scene` extracts render data from `ECS` into a `RenderFrame` packet that `Renderer` defines. |

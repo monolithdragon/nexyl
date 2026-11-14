@@ -150,10 +150,10 @@ The runtime does not use the C++ standard library or the C runtime library, with
 
 ### 5.2 Result and Error
 
-- `Result<T, E = Error>` holds either a value or an error. The type is `[[nodiscard]]`; a result cannot be dropped silently.
-- `Error` is a small trivially copyable value: an `ErrorCode` (module ID in the high 16 bits, module-specific code in the low 16 bits) and a 32-bit detail value such as an OS error number. Development builds additionally capture the source location. Creating an error never allocates.
-- Each module declares its codes as `enum class <Module>Error : u16` in `<Module>Errors.h`. Module IDs are assigned in `Base`.
-- `Option<T>` expresses "absent is a normal outcome". It is not an error channel.
+- `Result<T, E = Error>` holds either a value or an error. The type is `[[nodiscard]]`; a result cannot be dropped silently. It converts implicitly from `T` and from `E`, so a function returns either directly. `Result<void, E>` is default-constructed as success: `return {};`.
+- `Error` is a small trivially copyable value: an `ErrorCode` (module ID in the high 16 bits, module-specific code in the low 16 bits) and a 32-bit detail value such as an OS error number. When `NX_ERROR_LOCATIONS` is 1 (the default without `NDEBUG`), it also records the file and line where it was created; this changes its layout, so the setting is part of the Tier 1 build fingerprint. Creating an error never allocates. Create one explicitly: `return Error(MemoryError::OutOfMemory);`.
+- Each module declares its codes as `enum class <Module>Error : u16` in `<Module>Errors.h`, starting at 1, because 0 means success. Next to the enumeration it defines `constexpr ModuleId GetErrorModule(<Module>Error)`, which the `ErrorEnum` concept requires. A module's `ModuleId` is added to `Base/Error.h` when the module is created; an assigned ID never changes and is never reused.
+- `Option<T>` expresses "absent is a normal outcome". It is not an error channel. Its empty state is `kNone`.
 
 ### 5.3 Propagation
 
@@ -161,8 +161,8 @@ Two macros propagate failures in standard C++ (no compiler extensions):
 
 | Macro | Use |
 |---|---|
-| `NX_TRY(expression)` | Evaluates a `Result<void, Error>`; returns the error from the enclosing function on failure. |
-| `NX_TRY_ASSIGN(target, expression)` | Evaluates a `Result<T, Error>`; on success assigns or initialises `target` with the value, otherwise returns the error. |
+| `NX_TRY(expression)` | Evaluates a `Result`; returns the error from the enclosing function on failure and discards any value. |
+| `NX_TRY_ASSIGN(declaration, expression)` | Evaluates a `Result<T, Error>`; on success declares `declaration` and direct-initialises it with the value, otherwise returns the error. At most one per source line. |
 
 ```cpp
 Result<Mesh, Error> LoadMesh(StringView path, IAllocator& allocator) {
@@ -195,6 +195,8 @@ Result<Mesh, Error> LoadMesh(StringView path, IAllocator& allocator) {
 | `NX_UNREACHABLE()` | Becomes an optimiser hint | Code paths that cannot execute. |
 | `NX_ASSUME(condition)` | Optimiser hint | Only with measured benefit. |
 | `NX_FATAL(message)` | Yes | Unrecoverable failure; reports and terminates. |
+
+"Shipping builds" means builds with `NDEBUG`; `NX_ASSERTS_ENABLED` can override the default. A failed check calls the handler installed with `SetAssertHandler`, which decides whether to break into the debugger, continue or abort. Without a handler the process terminates at once, without calling the operating system or the C runtime.
 
 | ID | Rule | Level |
 |---|---|---|
@@ -238,7 +240,7 @@ Result<Mesh, Error> LoadMesh(StringView path, IAllocator& allocator) {
 
 | Element | Convention | Example |
 |---|---|---|
-| Namespace | PascalCase; root `Nexyl`; one level per module | `Nexyl::Physics` |
+| Namespace | PascalCase; root `Nexyl`; one level per module. `Base` is the exception: it is the shared vocabulary and declares directly in `Nexyl` | `Nexyl::Physics`, `Nexyl::Result` |
 | Internal namespace | `Detail` (also excluded from reflection) | `Nexyl::Physics::Detail` |
 | Class, struct, enum, alias, concept | PascalCase | `RigidBody`, `BodyType`, `TriviallyRelocatable` |
 | Interface (pure abstract class) | `I` + PascalCase | `IPhysicsSystem` |
@@ -258,6 +260,7 @@ Result<Mesh, Error> LoadMesh(StringView path, IAllocator& allocator) {
 | Macro | `NX_` + UPPER_SNAKE_CASE | `NX_ASSERT` |
 | Export macro | `NX_<MODULE>_API` | `NX_PHYSICS_API` |
 | Primitive aliases | lower-case | `u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 usize isize` |
+| Range-for protocol | lower-case, because the language requires it | `begin()`, `end()` |
 | Cast-like function template | `nx_` + snake_case (the only such exception) | `nx_cast<T>()` |
 | Source file | PascalCase, named after its primary type | `RigidBody.h`, `RigidBody.cpp`, `RigidBody.inl` |
 | Generated file | `.gen.` infix; never edited | `Physics.reflect.gen.cpp` |
@@ -327,7 +330,7 @@ enum class BodyType : u8 { Static, Kinematic, Dynamic };
 | CLS-3 | An interface has only pure virtual functions, no data, and a protected non-virtual destructor. | Review |
 | CLS-4 | Overrides are marked `override`. | CI |
 | CLS-5 | Virtual calls do not appear inside per-element hot loops. Interfaces are batch-oriented. | Review |
-| CLS-6 | Single-argument constructors and conversion operators are `explicit`. | CI |
+| CLS-6 | Single-argument constructors and conversion operators are `explicit`. The only exceptions are the converting constructors of the vocabulary wrappers `Result`, `Option` and `Span` from their payload, which are implicit by design and marked `explicit(false)` to show it. | CI |
 | CLS-7 | Every data member has an initial value. | CI |
 | CLS-8 | Functions returning a value that must be used are `[[nodiscard]]`. | Review |
 | CLS-9 | Narrowing conversions are explicit. | CI |
