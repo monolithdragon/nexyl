@@ -76,6 +76,10 @@ CheckOptions:
   readability-identifier-naming.FunctionCase: CamelCase
   readability-identifier-naming.FunctionIgnoredRegexp: '^(nx_[a-z0-9_]+|main)$'
   readability-identifier-naming.MethodCase: CamelCase
+  # Range-for requires these two names in lower case.
+  readability-identifier-naming.MethodIgnoredRegexp: '^(begin|end)$'
+  # Members of an anonymous union are named by the access of the class that contains them.
+  readability-identifier-naming.CheckAnonFieldInParent: true
   readability-identifier-naming.ParameterCase: camelBack
   readability-identifier-naming.LocalVariableCase: camelBack
   readability-identifier-naming.LocalConstantCase: camelBack
@@ -104,4 +108,8 @@ CheckOptions:
   # Plain structs expose their fields by design (rule NAME-3)
   cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor: true
   misc-const-correctness.AnalyzeValues: true
+  # Assertion macros negate their condition on purpose; rewriting the condition by De Morgan would not help.
+  readability-simplify-boolean-expr.IgnoreMacros: true
+  # Error-code enumerations and ModuleId are 16 bits wide by contract: they form NxResult at the C ABI.
+  performance-enum-size.EnumIgnoreList: 'Nexyl::ModuleId$;Error$'
 ...
