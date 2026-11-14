@@ -11,15 +11,15 @@ namespace {
 // Constant-initialized and trivially destructible: no static constructor or destructor runs (rule INIT-1).
 constinit Atomic<OutOfMemoryHandler> g_outOfMemoryHandler{nullptr};
 
-[[noreturn]] void ReportOutOfMemory(const OutOfMemoryInfo& info) {
+} // namespace
+
+void ReportOutOfMemory(const OutOfMemoryInfo& info) {
     const OutOfMemoryHandler handler = g_outOfMemoryHandler.Load(MemoryOrder::Acquire);
     if (handler != nullptr) {
         handler(info);
     }
     NX_FATAL("Out of memory: an allocation the caller cannot do without has failed.");
 }
-
-} // namespace
 
 OutOfMemoryHandler SetOutOfMemoryHandler(OutOfMemoryHandler handler) {
     return g_outOfMemoryHandler.Exchange(handler, MemoryOrder::AcquireRelease);
