@@ -27,6 +27,9 @@ include(NexylConformance)
 include(NexylModule)
 include(NexylGates)
 
+# Python runs the CI gates and the build-time generators (the test registry).
+find_package(Python3 3.10 REQUIRED COMPONENTS Interpreter)
+
 nexyl_configure_compiler()
 nexyl_check_conformance()
 

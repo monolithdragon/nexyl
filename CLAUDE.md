@@ -2,7 +2,7 @@
 
 Nexyl is a modular C++23 real-time 2D/3D game and simulation engine with a self-owned runtime. The game engine ships first; industrial digital twins, training simulators and robotics build on the same runtime.
 
-**Status:** roadmap phase 1 (foundation). The build system, the module system and the CI gates exist. `Base` provides the core vocabulary: platform detection (`Config.h`), `Result`, `Error`, `Option`, `Span`, `Move`/`Forward`, and the assert and log hooks. `Platform` so far has console output and a monotonic clock, for Windows and POSIX. No other module exists yet. The three documents below are the source of truth. If this file disagrees with them, they win, and this file must be corrected.
+**Status:** roadmap phase 1 (foundation). The build system, the module system and the CI gates exist. `Base` provides the core vocabulary: platform detection (`Config.h`), `Result`, `Error`, `Option`, `Span`, `Move`/`Forward`, and the assert and log hooks. `Platform` so far has console output and a monotonic clock, for Windows and POSIX. `Test` is the unit-test framework every module's tests use. No other module exists yet. The three documents below are the source of truth. If this file disagrees with them, they win, and this file must be corrected.
 
 ## Read before you write
 
@@ -57,7 +57,7 @@ Full table: `docs/CODING_STANDARDS.md`, section 7.
 7. Keep public headers minimal. Mark exported symbols with `NX_<MODULE>_API`.
 8. Declare error codes as `enum class <Module>Error : u16` in `<Module>Errors.h`.
 9. Choose allocators by lifetime class and define the module's memory tag.
-10. Add unit tests under `Tests/`. Until the `Test` module exists (phase 1), a test is a plain `main` that returns non-zero on failure.
+10. Add unit tests under `Tests/` with `NX_TEST`, `NX_CHECK` and `NX_REQUIRE` from `<Nexyl/Test/Test.h>` (`docs/CODING_STANDARDS.md`, section 19.1). Do not write a `main` or any registration; the build generates both.
 11. Document every public declaration.
 12. Run the workflow for your host preset and make every gate pass.
 
