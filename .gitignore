@@ -4,6 +4,9 @@
 # Local, per-developer CMake presets
 CMakeUserPresets.json
 
+# Compile database copied to the root for editors (NEXYL_EDITOR_DATABASE)
+/compile_commands.json
+
 # IDE state
 .vs/
 .idea/
