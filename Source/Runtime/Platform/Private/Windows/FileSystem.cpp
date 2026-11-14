@@ -165,6 +165,29 @@ Result<void, Error> RemoveEmptyDirectory(const char* path) {
     return {};
 }
 
+Result<void, Error> MakeSymbolicLink(const char* target, const char* linkPath, LinkTargetKind kind) {
+    wchar_t wideTarget[Detail::kMaxWidePath] = {};
+    wchar_t wideLink[Detail::kMaxWidePath] = {};
+    NX_TRY(Detail::ToWide(target, Span<wchar_t>(wideTarget)));
+    NX_TRY(Detail::ToWide(linkPath, Span<wchar_t>(wideLink)));
+    // The target is stored as written, and Windows resolves only backslashes in it.
+    for (wchar_t& character : wideTarget) {
+        if (character == L'/') {
+            character = L'\\';
+        }
+    }
+
+    // Without the flag, only elevated processes may create links, even in Developer Mode.
+    DWORD flags = SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE;
+    if (kind == LinkTargetKind::Directory) {
+        flags |= SYMBOLIC_LINK_FLAG_DIRECTORY;
+    }
+    if (::CreateSymbolicLinkW(wideLink, wideTarget, flags) == 0) {
+        return Detail::LastWindowsError();
+    }
+    return {};
+}
+
 Result<DirectoryIterator, Error> DirectoryIterator::Open(const char* path) {
     // FindFirstFile takes a pattern: append "\*" to the directory path.
     wchar_t pattern[Detail::kMaxWidePath] = {};

@@ -92,6 +92,13 @@ Result<void, Error> RemoveEmptyDirectory(const char* path) {
     return {};
 }
 
+Result<void, Error> MakeSymbolicLink(const char* target, const char* linkPath, LinkTargetKind /*kind*/) {
+    if (::symlink(target, linkPath) != 0) {
+        return Detail::LastPosixError();
+    }
+    return {};
+}
+
 Result<DirectoryIterator, Error> DirectoryIterator::Open(const char* path) {
     DIR* const directory = ::opendir(path);
     if (directory == nullptr) {

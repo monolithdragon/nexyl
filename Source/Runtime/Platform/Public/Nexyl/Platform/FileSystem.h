@@ -9,7 +9,7 @@
 //
 // Links (POSIX symbolic links; Windows symbolic links and junctions) behave the same on every platform:
 // GetFileInfo describes what a link points to, a directory listing never reports a link as a subdirectory,
-// RemoveFile removes the link itself, and RemoveEmptyDirectory rejects a link.
+// RemoveFile removes the link itself, and RemoveEmptyDirectory rejects a link. MakeSymbolicLink creates one.
 // The names avoid those of Windows macros (CreateDirectory, DeleteFile, RemoveDirectory), which would rename
 // the functions inside the Windows implementation.
 
@@ -68,6 +68,31 @@ struct FileInfo {
 /// @threadsafety safe
 /// @since 0.1
 [[nodiscard]] NX_PLATFORM_API Result<void, Error> RemoveEmptyDirectory(const char* path);
+
+/// What a symbolic link points to. Windows records it in the link; POSIX ignores it.
+/// @since 0.1
+enum class LinkTargetKind : u8 {
+    /// The target is a file, or does not exist.
+    File,
+    /// The target is a directory.
+    Directory,
+};
+
+/// Creates a symbolic link at `linkPath` that points to `target`.
+///
+/// A relative `target` is resolved from the directory that holds the link, not from the current directory.
+/// The target need not exist. On Windows, creating links needs Developer Mode or the symbolic-link privilege.
+///
+/// @param target   What the link points to.
+/// @param linkPath The link to create. Its parent directory must exist.
+/// @param kind     Whether the target is a directory. Windows needs it to resolve the link; POSIX ignores it.
+/// @error AlreadyExists Something already exists at `linkPath`.
+/// @error NotFound The parent directory of `linkPath` does not exist.
+/// @error AccessDenied The operating system does not let this process create links.
+/// @threadsafety safe
+/// @since 0.1
+[[nodiscard]] NX_PLATFORM_API Result<void, Error> MakeSymbolicLink(const char* target, const char* linkPath,
+                                                                   LinkTargetKind kind);
 
 /// One entry of a directory, as returned by DirectoryIterator.
 /// @since 0.1

@@ -40,6 +40,7 @@ inline Error MakeWindowsError(DWORD code, const SourceLocation& location = Sourc
             mapped = PlatformError::AlreadyExists;
             break;
         case ERROR_ACCESS_DENIED:
+        case ERROR_PRIVILEGE_NOT_HELD:
         case ERROR_SHARING_VIOLATION:
         case ERROR_LOCK_VIOLATION:
             mapped = PlatformError::AccessDenied;

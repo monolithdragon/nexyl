@@ -217,6 +217,65 @@ NX_TEST(FileSystem, DirectoriesAreCreatedListedAndRemoved) {
     NX_CHECK(RemoveEmptyDirectory("NexylPlatformFileTests/sub").IsOk());
 }
 
+NX_TEST(FileSystem, LinksBehaveTheSameEverywhere) {
+    const Scratch scratch;
+    NX_REQUIRE(MakeDirectory("NexylPlatformFileTests/realdir").IsOk());
+    {
+        const Result<File, Error> created =
+            File::Open("NexylPlatformFileTests/target.txt", FileAccess::Write, FileOpenMode::CreateNew);
+        NX_REQUIRE(created.IsOk());
+        NX_REQUIRE(created.GetValue().WriteAt(0, Bytes("12345", 5)).IsOk());
+    }
+
+    const Result<void, Error> linked =
+        MakeSymbolicLink("realdir", "NexylPlatformFileTests/dirlink", LinkTargetKind::Directory);
+    if (linked.IsError() && linked.GetError().Is(PlatformError::AccessDenied)) {
+        // Windows without Developer Mode or the symbolic-link privilege cannot create links: nothing to test.
+        NX_CHECK(RemoveEmptyDirectory("NexylPlatformFileTests/realdir").IsOk());
+        return;
+    }
+    NX_REQUIRE(linked.IsOk());
+    NX_REQUIRE(MakeSymbolicLink("target.txt", "NexylPlatformFileTests/filelink", LinkTargetKind::File).IsOk());
+    NX_REQUIRE(MakeSymbolicLink("missing", "NexylPlatformFileTests/dangling", LinkTargetKind::File).IsOk());
+    const Result<void, Error> twice =
+        MakeSymbolicLink("target.txt", "NexylPlatformFileTests/filelink", LinkTargetKind::File);
+    NX_REQUIRE(twice.IsError());
+    NX_CHECK(twice.GetError().Is(PlatformError::AlreadyExists));
+
+    // A listing never reports a link as a subdirectory.
+    Result<DirectoryIterator, Error> opened = DirectoryIterator::Open(kDirectory);
+    NX_REQUIRE(opened.IsOk());
+    DirectoryIterator iterator = Move(opened).TakeValue();
+    u32 count = 0;
+    DirectoryEntry entry;
+    while (iterator.Next(entry).ValueOr(false)) {
+        ++count;
+        NX_CHECK(entry.isDirectory == SameText(entry.GetName(), "realdir"));
+    }
+    NX_CHECK(count == 5);
+
+    // GetFileInfo follows links.
+    const Result<FileInfo, Error> directoryInfo = GetFileInfo("NexylPlatformFileTests/dirlink");
+    NX_REQUIRE(directoryInfo.IsOk());
+    NX_CHECK(directoryInfo.GetValue().isDirectory);
+    const Result<FileInfo, Error> fileInfo = GetFileInfo("NexylPlatformFileTests/filelink");
+    NX_REQUIRE(fileInfo.IsOk());
+    NX_CHECK(!fileInfo.GetValue().isDirectory && fileInfo.GetValue().size == 5);
+    const Result<FileInfo, Error> dangling = GetFileInfo("NexylPlatformFileTests/dangling");
+    NX_REQUIRE(dangling.IsError());
+    NX_CHECK(dangling.GetError().Is(PlatformError::NotFound));
+
+    // A link is removed as a file, never as a directory, and its target survives.
+    const Result<void, Error> asDirectory = RemoveEmptyDirectory("NexylPlatformFileTests/dirlink");
+    NX_REQUIRE(asDirectory.IsError());
+    NX_CHECK(asDirectory.GetError().Is(PlatformError::WrongFileType));
+    NX_CHECK(RemoveFile("NexylPlatformFileTests/dirlink").IsOk());
+    NX_CHECK(RemoveFile("NexylPlatformFileTests/filelink").IsOk());
+    NX_CHECK(RemoveFile("NexylPlatformFileTests/dangling").IsOk());
+    NX_CHECK(GetFileInfo("NexylPlatformFileTests/target.txt").ValueOr(FileInfo{}).size == 5);
+    NX_CHECK(RemoveEmptyDirectory("NexylPlatformFileTests/realdir").IsOk());
+}
+
 NX_TEST(FileSystem, IteratingAFileIsAnError) {
     const Scratch scratch;
     NX_REQUIRE(File::Open("NexylPlatformFileTests/plain.txt", FileAccess::Write, FileOpenMode::CreateNew).IsOk());
