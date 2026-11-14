@@ -19,6 +19,13 @@ constinit Atomic<u64> g_counter{5};
 
 } // namespace
 
+NX_TEST(Bits, MultiplyHighReturnsTheUpperHalf) {
+    NX_CHECK(MultiplyHigh(u64{1} << 32U, u64{1} << 32U) == 1);
+    NX_CHECK(MultiplyHigh(~u64{0}, ~u64{0}) == ~u64{0} - 1);
+    NX_CHECK(MultiplyHigh(u64{0x123456789ABCDEF0}, 0x10) == 0x1);
+    NX_CHECK(MultiplyHigh(12345, 67890) == 0);
+}
+
 NX_TEST(Atomic, LoadsAndStores) {
     Atomic<i32> value{3};
     NX_CHECK(value.Load(MemoryOrder::Acquire) == 3);

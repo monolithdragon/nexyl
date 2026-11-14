@@ -39,6 +39,13 @@ using OutOfMemoryHandler = void (*)(const OutOfMemoryInfo& info);
 /// @since 0.1
 NX_MEMORY_API OutOfMemoryHandler SetOutOfMemoryHandler(OutOfMemoryHandler handler);
 
+/// Reports an allocation the caller cannot do without as failed: calls the out-of-memory handler, then terminates
+/// through NX_FATAL. For containers and allocators whose own growth failed through a Try function.
+/// @param info What failed.
+/// @threadsafety safe
+/// @since 0.1
+[[noreturn]] NX_MEMORY_API void ReportOutOfMemory(const OutOfMemoryInfo& info);
+
 /// Allocates a block or terminates: the handler reports the failure, then NX_FATAL ends the process.
 /// @param allocator The allocator.
 /// @param size      Bytes. Not zero.

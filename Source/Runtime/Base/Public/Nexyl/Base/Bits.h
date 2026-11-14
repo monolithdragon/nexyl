@@ -7,7 +7,28 @@
 
 // Bit utilities over unsigned integers. They compile to single instructions where the CPU has them.
 
+#if NX_COMPILER_MSVC
+// The high half of a 64-bit multiplication. Declared here because <intrin.h> is not a whitelisted header.
+extern "C" unsigned __int64 __umulh(unsigned __int64 first, unsigned __int64 second);
+#pragma intrinsic(__umulh)
+#endif
+
 namespace Nexyl {
+
+/// Multiplies two 64-bit values and returns the high 64 bits of the 128-bit product.
+/// @param first  One factor.
+/// @param second The other factor.
+/// @return The product divided by 2^64.
+/// @threadsafety safe
+/// @since 0.1
+[[nodiscard]] inline u64 MultiplyHigh(u64 first, u64 second) {
+#if NX_COMPILER_MSVC
+    return __umulh(first, second);
+#else
+    // unsigned __int128 is a compiler extension on 64-bit targets; __extension__ keeps -Wpedantic quiet about it.
+    return static_cast<u64>(__extension__(static_cast<unsigned __int128>(first) * second) >> 64U);
+#endif
+}
 
 /// Satisfied by the unsigned integer types, including `usize` and excluding `bool` and character types.
 /// @since 0.1
