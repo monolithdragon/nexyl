@@ -25,12 +25,61 @@ HANDLE AsHandle(usize native) {
     return BitCast<HANDLE>(native);
 }
 
+// True for a found entry that links elsewhere: a symbolic link or a junction. Other reparse points, such as
+// cloud placeholders, are ordinary files and directories.
+bool IsLink(const WIN32_FIND_DATAW& data) {
+    return (data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0 &&
+           (data.dwReserved0 == IO_REPARSE_TAG_SYMLINK || data.dwReserved0 == IO_REPARSE_TAG_MOUNT_POINT);
+}
+
+// True if `path` itself, not what it points to, is a symbolic link or a junction.
+bool IsLinkPath(const wchar_t* path) {
+    const DWORD attributes = ::GetFileAttributesW(path);
+    if (attributes == INVALID_FILE_ATTRIBUTES || (attributes & FILE_ATTRIBUTE_REPARSE_POINT) == 0) {
+        return false;
+    }
+    // Only a find result carries the reparse tag. Without a wildcard, the search returns the entry itself.
+    WIN32_FIND_DATAW data = {};
+    void* const handle = ::FindFirstFileExW(path, FindExInfoBasic, &data, FindExSearchNameMatch, nullptr, 0);
+    if (handle == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+    NX_VERIFY(::FindClose(handle) != 0);
+    return IsLink(data);
+}
+
+// Describes what a reparse point resolves to, as POSIX stat does. Fails with NotFound for a dangling link.
+Result<WIN32_FILE_ATTRIBUTE_DATA, Error> DescribeTarget(const wchar_t* path) {
+    // Backup semantics allow opening directories; the open follows links.
+    constexpr DWORD kShareAll = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
+    void* const handle = ::CreateFileW(path, FILE_READ_ATTRIBUTES, kShareAll, nullptr, OPEN_EXISTING,
+                                       FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+    if (handle == INVALID_HANDLE_VALUE) {
+        return Detail::LastWindowsError();
+    }
+    BY_HANDLE_FILE_INFORMATION info = {};
+    const bool described = ::GetFileInformationByHandle(handle, &info) != 0;
+    const DWORD code = described ? ERROR_SUCCESS : ::GetLastError();
+    NX_VERIFY(::CloseHandle(handle) != 0);
+    if (!described) {
+        return Detail::MakeWindowsError(code);
+    }
+
+    WIN32_FILE_ATTRIBUTE_DATA data = {};
+    data.dwFileAttributes = info.dwFileAttributes;
+    data.ftLastWriteTime = info.ftLastWriteTime;
+    data.nFileSizeHigh = info.nFileSizeHigh;
+    data.nFileSizeLow = info.nFileSizeLow;
+    return data;
+}
+
 // Converts a found entry into a DirectoryEntry. On error `outEntry` is untouched.
 Result<void, Error> ToEntry(const WIN32_FIND_DATAW& data, DirectoryEntry& outEntry) {
     DirectoryEntry entry;
     NX_TRY_ASSIGN(const usize length, Detail::ToUtf8(data.cFileName, Span<char>(entry.name)));
     entry.nameLength = length;
-    entry.isDirectory = (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+    // A link is never a subdirectory, as on POSIX, so a recursive walk cannot loop through one.
+    entry.isDirectory = (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0 && !IsLink(data);
     outEntry = entry;
     return {};
 }
@@ -44,6 +93,14 @@ Result<FileInfo, Error> GetFileInfo(const char* path) {
     WIN32_FILE_ATTRIBUTE_DATA data = {};
     if (::GetFileAttributesExW(widePath, GetFileExInfoStandard, &data) == 0) {
         return Detail::LastWindowsError();
+    }
+    if ((data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
+        // These attributes describe the link itself; report what it points to instead.
+        const Result<WIN32_FILE_ATTRIBUTE_DATA, Error> target = DescribeTarget(widePath);
+        if (target.IsError()) {
+            return target.GetError();
+        }
+        data = target.GetValue();
     }
 
     FileInfo info;
@@ -61,6 +118,13 @@ Result<void, Error> RemoveFile(const char* path) {
         const DWORD attributes = ::GetFileAttributesW(widePath);
         if (code == ERROR_ACCESS_DENIED && attributes != INVALID_FILE_ATTRIBUTES &&
             (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
+            // A link to a directory is removed like a file, as unlink does on POSIX. The target is untouched.
+            if (IsLinkPath(widePath)) {
+                if (::RemoveDirectoryW(widePath) == 0) {
+                    return Detail::LastWindowsError();
+                }
+                return {};
+            }
             return Error(PlatformError::WrongFileType, code);
         }
         return Detail::MakeWindowsError(code);
@@ -91,6 +155,10 @@ Result<void, Error> MakeDirectory(const char* path) {
 Result<void, Error> RemoveEmptyDirectory(const char* path) {
     wchar_t widePath[Detail::kMaxWidePath] = {};
     NX_TRY(Detail::ToWide(path, Span<wchar_t>(widePath)));
+    // RemoveDirectory would delete a link to a directory. A link is not a directory, as rmdir reports on POSIX.
+    if (IsLinkPath(widePath)) {
+        return Error(PlatformError::WrongFileType, ERROR_DIRECTORY);
+    }
     if (::RemoveDirectoryW(widePath) == 0) {
         return Detail::LastWindowsError();
     }

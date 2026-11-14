@@ -6,6 +6,10 @@
 #include <Nexyl/Base/Types.h>
 
 // File-system operations other than reading and writing. All paths are NUL-terminated UTF-8.
+//
+// Links (POSIX symbolic links; Windows symbolic links and junctions) behave the same on every platform:
+// GetFileInfo describes what a link points to, a directory listing never reports a link as a subdirectory,
+// RemoveFile removes the link itself, and RemoveEmptyDirectory rejects a link.
 // The names avoid those of Windows macros (CreateDirectory, DeleteFile, RemoveDirectory), which would rename
 // the functions inside the Windows implementation.
 
@@ -23,16 +27,16 @@ struct FileInfo {
     bool isDirectory = false;
 };
 
-/// Returns information about a file or directory.
+/// Returns information about a file or directory. A link is followed: the result describes its target.
 ///
 /// @param path The file or directory.
 /// @return Its size, modification time and type.
-/// @error NotFound Nothing exists at `path`.
+/// @error NotFound Nothing exists at `path`, or it is a link whose target does not exist.
 /// @threadsafety safe
 /// @since 0.1
 [[nodiscard]] NX_PLATFORM_API Result<FileInfo, Error> GetFileInfo(const char* path);
 
-/// Deletes a file.
+/// Deletes a file. For a link, also one to a directory, the link itself is deleted and its target is kept.
 /// @param path The file.
 /// @error NotFound The file does not exist.
 /// @error WrongFileType The path names a directory.
@@ -60,6 +64,7 @@ struct FileInfo {
 /// @param path The directory.
 /// @error DirectoryNotEmpty The directory has entries.
 /// @error NotFound The directory does not exist.
+/// @error WrongFileType The path names a file or a link; delete a link with RemoveFile.
 /// @threadsafety safe
 /// @since 0.1
 [[nodiscard]] NX_PLATFORM_API Result<void, Error> RemoveEmptyDirectory(const char* path);
@@ -74,7 +79,8 @@ struct DirectoryEntry {
     char name[kMaxNameLength] = {};
     /// Number of valid bytes in `name`.
     usize nameLength = 0;
-    /// True for a subdirectory. On POSIX a symbolic link is never a subdirectory, whatever it points to.
+    /// True for a subdirectory. A link is never a subdirectory, whatever it points to, so a recursive walk
+    /// cannot loop; GetFileInfo on the entry's path tells what the link points to.
     bool isDirectory = false;
 
     /// Returns the name as a span. @since 0.1
