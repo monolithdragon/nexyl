@@ -138,6 +138,8 @@ Result<bool, Error> DirectoryIterator::Next(DirectoryEntry& outEntry) {
             if (errno != 0) {
                 return Detail::LastPosixError();
             }
+            // Release the directory as soon as the listing ends; later calls keep returning false.
+            Close();
             return false;
         }
         if (IsDotOrDotDot(entry->d_name)) {
@@ -156,8 +158,12 @@ Result<bool, Error> DirectoryIterator::Next(DirectoryEntry& outEntry) {
 
         // Some file systems do not report the type in the entry; ask for it then.
         if (entry->d_type == DT_UNKNOWN) {
+            const int descriptor = ::dirfd(directory);
+            if (descriptor < 0) {
+                return Detail::LastPosixError();
+            }
             struct stat status = {};
-            if (::fstatat(::dirfd(directory), entry->d_name, &status, 0) != 0) {
+            if (::fstatat(descriptor, entry->d_name, &status, 0) != 0) {
                 return Detail::LastPosixError();
             }
             outEntry.isDirectory = S_ISDIR(status.st_mode);

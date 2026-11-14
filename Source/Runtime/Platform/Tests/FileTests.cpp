@@ -208,6 +208,8 @@ NX_TEST(FileSystem, DirectoriesAreCreatedListedAndRemoved) {
     NX_CHECK(foundSub);
     NX_CHECK(foundFile);
     NX_CHECK(foundUnicode);
+    // After the end the directory is released, and Next keeps reporting the end.
+    NX_CHECK(!iterator.Next(entry).ValueOr(true));
 
     const Result<void, Error> notEmpty = RemoveEmptyDirectory(kDirectory);
     NX_REQUIRE(notEmpty.IsError());

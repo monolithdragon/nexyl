@@ -177,6 +177,8 @@ Result<bool, Error> DirectoryIterator::Next(DirectoryEntry& outEntry) {
     }
     const DWORD code = ::GetLastError();
     if (code == ERROR_NO_MORE_FILES) {
+        // Release the directory as soon as the listing ends; later calls keep returning false.
+        Close();
         return false;
     }
     return Detail::MakeWindowsError(code);

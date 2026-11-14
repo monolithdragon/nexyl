@@ -86,7 +86,8 @@ struct DirectoryEntry {
 /// Lists the entries of one directory, without "." and "..", in the order the file system returns them.
 ///
 /// The order is unspecified and differs between platforms: sort the names if order matters (rule DET-7).
-/// The iterator is a movable handle and allocates nothing in the engine.
+/// The iterator is a movable handle and allocates nothing in the engine. It releases the directory as soon as
+/// Next reports the end, or when it is destroyed.
 /// @threadsafety compatible
 /// @since 0.1
 class DirectoryIterator final {

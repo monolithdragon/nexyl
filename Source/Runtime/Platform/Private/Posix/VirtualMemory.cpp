@@ -30,6 +30,8 @@ int ToProtection(MemoryAccess access) {
 
 // Flags of an inaccessible anonymous mapping that holds address space but no memory.
 constexpr int kReserveFlags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE;
+// The same mapping placed over an existing range, replacing the pages there.
+constexpr int kReplaceFlags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE | MAP_FIXED;
 
 } // namespace
 
@@ -76,7 +78,7 @@ Result<void, Error> DecommitMemory(void* address, usize size) {
     NX_ASSERT(IsPageMultiple(size), "Decommit size must be a non-zero multiple of the page size.");
     // Mapping fresh inaccessible pages over the range discards the old pages on every POSIX system,
     // unlike madvise, whose effect differs between Linux and macOS. The range stays reserved.
-    if (::mmap(address, size, PROT_NONE, kReserveFlags | MAP_FIXED, -1, 0) == MAP_FAILED) {
+    if (::mmap(address, size, PROT_NONE, kReplaceFlags, -1, 0) == MAP_FAILED) {
         return Detail::LastPosixError();
     }
     return {};

@@ -21,36 +21,38 @@ int AsDescriptor(isize native) {
 } // namespace
 
 Result<File, Error> File::Open(const char* path, FileAccess access, FileOpenMode mode) {
-    int flags = O_CLOEXEC;
+    // The O_ flags are signed int constants; they are combined as unsigned bits and converted back for open().
+    const auto bit = [](int flag) { return static_cast<u32>(flag); };
+    u32 flags = bit(O_CLOEXEC);
     switch (access) {
         case FileAccess::Read:
-            flags |= O_RDONLY;
+            flags |= bit(O_RDONLY);
             break;
         case FileAccess::Write:
-            flags |= O_WRONLY;
+            flags |= bit(O_WRONLY);
             break;
         case FileAccess::ReadWrite:
-            flags |= O_RDWR;
+            flags |= bit(O_RDWR);
             break;
     }
     switch (mode) {
         case FileOpenMode::OpenExisting:
             break;
         case FileOpenMode::CreateNew:
-            flags |= O_CREAT | O_EXCL;
+            flags |= bit(O_CREAT) | bit(O_EXCL);
             break;
         case FileOpenMode::CreateOrTruncate:
-            flags |= O_CREAT | O_TRUNC;
+            flags |= bit(O_CREAT) | bit(O_TRUNC);
             break;
         case FileOpenMode::OpenOrCreate:
-            flags |= O_CREAT;
+            flags |= bit(O_CREAT);
             break;
     }
 
     constexpr mode_t kNewFilePermissions = 0644;
     int descriptor = -1;
     do {
-        descriptor = ::open(path, flags, kNewFilePermissions);
+        descriptor = ::open(path, static_cast<int>(flags), kNewFilePermissions);
     } while (descriptor < 0 && errno == EINTR);
     if (descriptor < 0) {
         return Detail::LastPosixError();
