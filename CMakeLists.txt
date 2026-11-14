@@ -50,3 +50,15 @@ nexyl_finalize_modules()
 
 # ---- CI gates (run through ctest) ------------------------------------------------------------------------
 nexyl_add_gates()
+
+# ---- Editor support --------------------------------------------------------------------------------------
+# clangd looks for compile_commands.json in the source tree. Without it, an editor knows neither the include
+# paths of the modules nor the language mode, and reports every engine header as missing.
+option(NEXYL_EDITOR_DATABASE "Copy compile_commands.json to the source root after each build, for clangd" OFF)
+if(NEXYL_EDITOR_DATABASE)
+    add_custom_target(Nexyl.EditorDatabase ALL
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "${CMAKE_BINARY_DIR}/compile_commands.json" "${CMAKE_SOURCE_DIR}/compile_commands.json"
+        COMMENT "Updating compile_commands.json in the source root for editors"
+        VERBATIM)
+endif()

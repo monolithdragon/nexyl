@@ -2,6 +2,8 @@
 #
 # A deliberately conservative starting set, informed by MISRA C++:2023. Checks that recommend
 # standard-library facilities are left out, because the runtime does not use the standard library.
+# For example, modernize-deprecated-headers is excluded: it asks POSIX code in Platform to include
+# <cerrno> or <ctime> instead of the system headers, and those standard headers are banned (rule STL-3).
 # The profile is tightened as real code arrives; every finding is an error.
 ---
 Checks: >
@@ -33,7 +35,6 @@ Checks: >
   misc-unconventional-assign-operator,
   misc-unused-parameters,
   misc-unused-using-decls,
-  modernize-deprecated-headers,
   modernize-redundant-void-arg,
   modernize-use-bool-literals,
   modernize-use-default-member-init,
