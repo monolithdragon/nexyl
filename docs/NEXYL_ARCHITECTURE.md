@@ -167,10 +167,10 @@ Dependencies listed are direct dependencies. This table is the source of truth; 
 | `Platform` | 1 | Foundation | `Base` |
 | `Memory` | 2 | Foundation | `Base`, `Platform` |
 | `Math` | 2 | Foundation | `Base` |
+| `Test` | 2 | TestLib | `Base`, `Platform` |
 | `Containers` | 3 | Foundation | `Base`, `Memory` |
 | `Log` | 4 | Service | `Base`, `Platform`, `Memory`, `Containers` |
 | `Profile` | 4 | Service | `Base`, `Platform`, `Memory`, `Containers` |
-| `Test` | 4 | TestLib | `Base`, `Platform`, `Memory`, `Containers` |
 | `Jobs` | 4 | Service | `Base`, `Platform`, `Memory`, `Containers` |
 | `Reflection` | 4 | Service | `Base`, `Memory`, `Math`, `Containers` |
 | `Serialization` | 5 | Service | `Base`, `Memory`, `Containers`, `Reflection` |
@@ -227,6 +227,7 @@ Module responsibilities in one line each:
 | `Platform` | Hardware abstraction: virtual memory, threads, synchronisation, files, time, dynamic libraries, sockets, windows, raw input. Its API never allocates; callers supply buffers. |
 | `Memory` | Allocators, tags, budgets, tracking. |
 | `Math` | Deterministic scalar, vector, matrix and quaternion math, transcendental functions, SIMD abstraction. |
+| `Test` | The engine's unit-test framework: test registration, checks, runner. Uses fixed-size static storage instead of `Memory` and `Containers`, so that every module, including those two, is tested with it. |
 | `Containers` | `Array`, `HashMap`, `String`, `StringView`, smart pointers, handles, handle pools. |
 | `Jobs` | Work-stealing job scheduler, deterministic parallel-for, job handles. |
 | `Reflection` | Runtime type registry and type-info model; also hosts the generated tables for layer 0–3 types. |
@@ -1049,7 +1050,7 @@ The game engine is the first shippable milestone. Each phase ends with a verifia
 | Phase | Content | Exit criterion |
 |---|---|---|
 | 0 — Scaffolding | Repository layout, CMake module system with layer and kind checks, CI gates (include scanner, standard-header scanner, formatting, static analysis), compiler-conformance test | An empty module passes every gate on Windows, Linux and macOS |
-| 1 — Foundation | `Base`, `Platform` (desktop), `Memory`, `Math`, `Containers`, `Test` | Unit and fuzz tests pass; `Math` reproduces reference vectors on all desktop toolchains |
+| 1 — Foundation | In this order: `Base` core types; the `Platform` subset `Test` needs (console output, monotonic time, process exit); `Test`; the rest of `Platform` (desktop); `Memory`; `Containers`. `Math` and the determinism lint in parallel after `Base` | Unit and fuzz tests pass; `Math` reproduces reference vectors on all desktop toolchains |
 | 2 — Services | `Jobs`, `Log`, `Profile`, `Reflection` with NHT, `Serialization`, `VFS`, `PluginHost` | A sample module is reflected, serialized, and hot-reloaded; static and dynamic loading both pass |
 | 3 — Rendering | `RHI.Api`, `RHI.Vulkan`, `RHI.DX12`, `ShaderCompiler`, `Shader`, `Renderer` (minimum) | A lit scene renders through the bindless path on Vulkan and DX12 from the same NXSL source |
 | 4 — World | `ECS`, `Assets`, `Scene`, `Physics.Api`, `Physics.Nexyl` (rigid bodies), `Audio.Api`, `Audio.Nexyl` (minimum), `Input` | A physics scene passes the determinism matrix on desktop |
@@ -1091,3 +1092,5 @@ The game engine is the first shippable milestone. Each phase ends with a verifia
 | D-23 | Strict floating-point flags on every module | Removes the risk that the linker gives simulation code a non-strict copy of a shared inline function | Strict flags only on simulation-safe modules |
 | D-24 | CI gates are provider-independent scripts run through CTest | The same command checks a change locally and in CI; the CI configuration stays a thin wrapper that can be replaced | Gate logic written in a CI provider's own configuration language |
 | D-25 | A module's export macro and all compiler flags come from the build system; a manifest is one declarative call | Modules cannot drift from the engine-wide configuration; no generated export headers | Per-module export headers and per-module flags |
+| D-26 | `Test` sits at layer 2 and depends only on `Base` and `Platform`, using fixed-size static storage | Available before `Memory` and `Containers`, so those are tested with the real framework from the start and no interim tests need rewriting | `Test` at layer 4 on top of `Containers` |
+| D-27 | `Math` reference values are computed once at high precision with `mpmath` by an offline script and committed | Fixes the expected bits independently of every compiler and math library; the runtime and CI need no third-party code | Values from one platform's math library; arbitrary-precision code of our own |
