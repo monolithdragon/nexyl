@@ -41,10 +41,12 @@ Mutex::~Mutex() {
     NX_VERIFY(::pthread_mutex_destroy(AsMutex(m_storage)) == 0);
 }
 
+// A failed lock or unlock means a broken invariant; continuing would corrupt the protected data.
 void Mutex::Lock() {
-    const int result = ::pthread_mutex_lock(AsMutex(m_storage));
-    NX_ASSERT(result != EDEADLK, "Mutex locked twice by the same thread; Nexyl mutexes are not recursive.");
-    NX_ASSERT(result == 0, "pthread_mutex_lock failed.");
+    if (const int result = ::pthread_mutex_lock(AsMutex(m_storage)); result != 0) {
+        NX_FATAL(result == EDEADLK ? "Mutex locked twice by the same thread; Nexyl mutexes are not recursive."
+                                   : "pthread_mutex_lock failed.");
+    }
 }
 
 bool Mutex::TryLock() {
@@ -52,8 +54,9 @@ bool Mutex::TryLock() {
 }
 
 void Mutex::Unlock() {
-    const int result = ::pthread_mutex_unlock(AsMutex(m_storage));
-    NX_ASSERT(result == 0, "Mutex unlocked by a thread that does not hold it.");
+    if (::pthread_mutex_unlock(AsMutex(m_storage)) != 0) {
+        NX_FATAL("Mutex unlocked by a thread that does not hold it.");
+    }
 }
 
 ConditionVariable::ConditionVariable() {
