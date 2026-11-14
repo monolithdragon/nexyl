@@ -532,6 +532,34 @@ The output of clang-format and the findings of clang-tidy differ between version
 
 Test categories: unit, determinism, ABI conformance, fuzz, soak, performance.
 
+### 19.1 Writing unit tests
+
+Unit tests live in a module's `Tests/` directory and use `<Nexyl/Test/Test.h>`:
+
+```cpp
+NX_TEST(Span, SlicesWithinBounds) {
+    const i32 values[] = {1, 2, 3};
+    const Span<const i32> all(values);
+    NX_REQUIRE(all.Size() == 3);
+    NX_CHECK(all.First(2).Size() == 2);
+}
+```
+
+| Macro | Effect on failure |
+|---|---|
+| `NX_TEST(Suite, Name)` | Defines a test. Suite and name are PascalCase; the pair is unique within the module. |
+| `NX_CHECK(condition)` | Reports the condition with its location, marks the test failed, continues. |
+| `NX_REQUIRE(condition)` | Like `NX_CHECK`, then returns from the current function. Only in functions returning `void`. |
+
+There is no registration code and no `main`. The build scans the module's test sources for `NX_TEST` and generates the test table and `main` (`Scripts/build/generate_test_registry.py`), because static registration is forbidden (rule INIT-1). Tests run in source order: files sorted by path, then by line.
+
+| ID | Rule | Level |
+|---|---|---|
+| TEST-8 | `NX_TEST` never appears inside conditional compilation. Configuration-dependent checks go inside the test body. | CI |
+| TEST-9 | Checks are made only from the thread that runs the test. (This is lifted once `Base` has an atomic wrapper.) | Review |
+
+A test executable accepts `--filter <text>` (substring of `Suite.Name`), `--list` and `--help`. While tests run, a failed `NX_ASSERT` in the code under test is reported with its location and ends the run.
+
 ---
 
 ## 20. CI gates
