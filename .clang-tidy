@@ -75,7 +75,8 @@ CheckOptions:
   readability-identifier-naming.ValueTemplateParameterCase: CamelCase
   readability-identifier-naming.TemplateTemplateParameterCase: CamelCase
   readability-identifier-naming.FunctionCase: CamelCase
-  readability-identifier-naming.FunctionIgnoredRegexp: '^(nx_[a-z0-9_]+|main)$'
+  # C ABI functions, main, and the four C runtime memory functions that Memory declares (CODING_STANDARDS.md, 4.1).
+  readability-identifier-naming.FunctionIgnoredRegexp: '^(nx_[a-z0-9_]+|main|memcpy|memmove|memset|memcmp)$'
   readability-identifier-naming.MethodCase: CamelCase
   # Range-for requires these two names in lower case.
   readability-identifier-naming.MethodIgnoredRegexp: '^(begin|end)$'
