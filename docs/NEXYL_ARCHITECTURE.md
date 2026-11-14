@@ -1050,7 +1050,7 @@ The game engine is the first shippable milestone. Each phase ends with a verifia
 | Phase | Content | Exit criterion |
 |---|---|---|
 | 0 — Scaffolding | Repository layout, CMake module system with layer and kind checks, CI gates (include scanner, standard-header scanner, formatting, static analysis), compiler-conformance test | An empty module passes every gate on Windows, Linux and macOS |
-| 1 — Foundation | In this order: `Base` core types; the `Platform` subset `Test` needs (console output, monotonic time, process exit); `Test`; the rest of `Platform` (desktop); `Memory`; `Containers`. `Math` and the determinism lint in parallel after `Base` | Unit and fuzz tests pass; `Math` reproduces reference vectors on all desktop toolchains |
+| 1 — Foundation | In this order: `Base` core types; the `Platform` subset `Test` needs (console output, monotonic time); `Test`; the rest of `Platform` (desktop); `Memory`; `Containers`. `Math` and the determinism lint in parallel after `Base` | Unit and fuzz tests pass; `Math` reproduces reference vectors on all desktop toolchains |
 | 2 — Services | `Jobs`, `Log`, `Profile`, `Reflection` with NHT, `Serialization`, `VFS`, `PluginHost` | A sample module is reflected, serialized, and hot-reloaded; static and dynamic loading both pass |
 | 3 — Rendering | `RHI.Api`, `RHI.Vulkan`, `RHI.DX12`, `ShaderCompiler`, `Shader`, `Renderer` (minimum) | A lit scene renders through the bindless path on Vulkan and DX12 from the same NXSL source |
 | 4 — World | `ECS`, `Assets`, `Scene`, `Physics.Api`, `Physics.Nexyl` (rigid bodies), `Audio.Api`, `Audio.Nexyl` (minimum), `Input` | A physics scene passes the determinism matrix on desktop |
