@@ -19,6 +19,8 @@ enum class ModuleId : u16 {
     None = 0,
     /// The Base module.
     Base = 1,
+    /// The Platform module.
+    Platform = 2,
 };
 
 /// Satisfied by an enumeration that holds one module's error codes (rule ERR, section 5.2).
