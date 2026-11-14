@@ -44,8 +44,11 @@ Result<FileInfo, Error> GetFileInfo(const char* path) {
     FileInfo info;
     info.isDirectory = S_ISDIR(status.st_mode);
     info.size = info.isDirectory ? 0 : static_cast<u64>(status.st_size);
-    info.modificationTime =
-        static_cast<u64>(modified.tv_sec) * kNanosecondsPerSecond + static_cast<u64>(modified.tv_nsec);
+    // A time before 1970 is negative here; report it as zero, as the Windows implementation does.
+    if (modified.tv_sec >= 0) {
+        info.modificationTime =
+            static_cast<u64>(modified.tv_sec) * kNanosecondsPerSecond + static_cast<u64>(modified.tv_nsec);
+    }
     return info;
 }
 
@@ -146,30 +149,35 @@ Result<bool, Error> DirectoryIterator::Next(DirectoryEntry& outEntry) {
             continue;
         }
 
+        // Everything that can fail runs before outEntry is written: the caller's entry stays untouched on error.
         usize length = 0;
         while (entry->d_name[length] != '\0') {
-            if (length == DirectoryEntry::kMaxNameLength) {
+            ++length;
+            if (length > DirectoryEntry::kMaxNameLength) {
                 return Error(PlatformError::PathTooLong);
             }
-            outEntry.name[length] = entry->d_name[length];
-            ++length;
         }
-        outEntry.nameLength = length;
 
-        // Some file systems do not report the type in the entry; ask for it then.
+        // Some file systems do not report the type in the entry; ask for it then. A symbolic link is not a
+        // subdirectory, whichever way the type is found, so the fallback must not follow links either.
+        bool isDirectory = entry->d_type == DT_DIR;
         if (entry->d_type == DT_UNKNOWN) {
             const int descriptor = ::dirfd(directory);
             if (descriptor < 0) {
                 return Detail::LastPosixError();
             }
             struct stat status = {};
-            if (::fstatat(descriptor, entry->d_name, &status, 0) != 0) {
+            if (::fstatat(descriptor, entry->d_name, &status, AT_SYMLINK_NOFOLLOW) != 0) {
                 return Detail::LastPosixError();
             }
-            outEntry.isDirectory = S_ISDIR(status.st_mode);
-        } else {
-            outEntry.isDirectory = entry->d_type == DT_DIR;
+            isDirectory = S_ISDIR(status.st_mode);
         }
+
+        for (usize index = 0; index < length; ++index) {
+            outEntry.name[index] = entry->d_name[index];
+        }
+        outEntry.nameLength = length;
+        outEntry.isDirectory = isDirectory;
         return true;
     }
 }

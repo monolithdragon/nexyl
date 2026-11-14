@@ -78,6 +78,17 @@ inline Error LastWindowsError(const SourceLocation& location = SourceLocation::C
     return MakeWindowsError(::GetLastError(), location);
 }
 
+/// Converts a duration into the milliseconds a Win32 wait takes. Rounds up, so the wait is never shorter than
+/// requested, and clamps just below INFINITE (about 49.7 days), so a long duration never becomes an endless wait.
+inline DWORD ToWaitMilliseconds(u64 nanoseconds) {
+    constexpr u64 kNanosecondsPerMillisecond = 1'000'000;
+    // Divide first: adding the rounding term before dividing would wrap around for durations near the u64 maximum.
+    const u64 milliseconds =
+        nanoseconds / kNanosecondsPerMillisecond + (nanoseconds % kNanosecondsPerMillisecond != 0 ? 1 : 0);
+    constexpr u64 kLongest = INFINITE - 1;
+    return static_cast<DWORD>(milliseconds < kLongest ? milliseconds : kLongest);
+}
+
 /// Converts a NUL-terminated UTF-8 string into a NUL-terminated UTF-16 string in `output`.
 /// Fails with PathTooLong if it does not fit and InvalidPath if the input is not valid UTF-8.
 inline Result<void, Error> ToWide(const char* utf8, Span<wchar_t> output,
@@ -94,12 +105,22 @@ inline Result<void, Error> ToWide(const char* utf8, Span<wchar_t> output,
     return {};
 }
 
-/// Converts a NUL-terminated UTF-16 string into UTF-8 in `output`, without a terminator.
-/// @return The number of bytes written, or zero if the text does not fit or is invalid.
-inline usize ToUtf8(const wchar_t* wide, Span<char> output) {
+/// Converts a NUL-terminated UTF-16 string into UTF-8 in `output`. `output` needs room for a terminator,
+/// which is written but not counted. On failure the contents of `output` are unspecified.
+/// @return The number of bytes before the terminator.
+/// Fails with PathTooLong if it does not fit and InvalidPath if the input is not valid UTF-16, which NTFS allows.
+inline Result<usize, Error> ToUtf8(const wchar_t* wide, Span<char> output,
+                                   const SourceLocation& location = SourceLocation::Current()) {
     const int written = ::WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wide, -1, output.Data(),
                                               static_cast<int>(output.Size()), nullptr, nullptr);
-    return written > 0 ? static_cast<usize>(written - 1) : 0;
+    if (written == 0) {
+        const DWORD code = ::GetLastError();
+        if (code == ERROR_INSUFFICIENT_BUFFER) {
+            return Error(PlatformError::PathTooLong, static_cast<u32>(code), location);
+        }
+        return MakeWindowsError(code, location);
+    }
+    return static_cast<usize>(written - 1);
 }
 
 } // namespace Nexyl::Platform::Detail

@@ -17,13 +17,6 @@ CONDITION_VARIABLE* AsCondition(void* storage) {
     return static_cast<CONDITION_VARIABLE*>(storage);
 }
 
-// Converts a timeout to whole milliseconds, rounding up so the wait is never shorter than requested.
-DWORD ToMilliseconds(u64 nanoseconds) {
-    const u64 milliseconds = (nanoseconds + 999'999) / 1'000'000;
-    constexpr u64 kLongest = INFINITE - 1;
-    return static_cast<DWORD>(milliseconds < kLongest ? milliseconds : kLongest);
-}
-
 } // namespace
 
 Mutex::Mutex() {
@@ -71,7 +64,7 @@ void ConditionVariable::Wait(Mutex& mutex) {
 bool ConditionVariable::WaitFor(Mutex& mutex, u64 timeoutNanoseconds) {
     ++m_waiters;
     const bool woken = ::SleepConditionVariableSRW(AsCondition(m_storage), AsLock(NativeMutex(mutex)),
-                                                   ToMilliseconds(timeoutNanoseconds), 0) != 0;
+                                                   Detail::ToWaitMilliseconds(timeoutNanoseconds), 0) != 0;
     NX_ASSERT(woken || ::GetLastError() == ERROR_TIMEOUT, "SleepConditionVariableSRW failed.");
     --m_waiters;
     return woken;

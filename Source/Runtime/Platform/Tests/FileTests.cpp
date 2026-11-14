@@ -227,4 +227,9 @@ NX_TEST(FileSystem, IteratingAFileIsAnError) {
     const Result<DirectoryIterator, Error> missing = DirectoryIterator::Open("NexylPlatformFileTests/none");
     NX_REQUIRE(missing.IsError());
     NX_CHECK(missing.GetError().Is(PlatformError::NotFound));
+
+    // An empty path names nothing; it must not fall back to the current directory.
+    const Result<DirectoryIterator, Error> empty = DirectoryIterator::Open("");
+    NX_REQUIRE(empty.IsError());
+    NX_CHECK(empty.GetError().Is(PlatformError::NotFound));
 }

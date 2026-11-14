@@ -25,14 +25,13 @@ HANDLE AsHandle(usize native) {
     return BitCast<HANDLE>(native);
 }
 
-// Converts a found entry into a DirectoryEntry.
+// Converts a found entry into a DirectoryEntry. On error `outEntry` is untouched.
 Result<void, Error> ToEntry(const WIN32_FIND_DATAW& data, DirectoryEntry& outEntry) {
-    const usize length = Detail::ToUtf8(data.cFileName, Span<char>(outEntry.name));
-    if (length == 0) {
-        return Error(PlatformError::PathTooLong);
-    }
-    outEntry.nameLength = length;
-    outEntry.isDirectory = (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+    DirectoryEntry entry;
+    NX_TRY_ASSIGN(const usize length, Detail::ToUtf8(data.cFileName, Span<char>(entry.name)));
+    entry.nameLength = length;
+    entry.isDirectory = (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+    outEntry = entry;
     return {};
 }
 
@@ -106,7 +105,11 @@ Result<DirectoryIterator, Error> DirectoryIterator::Open(const char* path) {
     while (pattern[length] != L'\0') {
         ++length;
     }
-    if (length > 0 && pattern[length - 1] != L'\\' && pattern[length - 1] != L'/') {
+    // An empty path would become the pattern "*" and list the current directory; POSIX reports it as missing.
+    if (length == 0) {
+        return Error(PlatformError::NotFound, ERROR_PATH_NOT_FOUND);
+    }
+    if (pattern[length - 1] != L'\\' && pattern[length - 1] != L'/') {
         pattern[length++] = L'\\';
     }
     pattern[length] = L'*';

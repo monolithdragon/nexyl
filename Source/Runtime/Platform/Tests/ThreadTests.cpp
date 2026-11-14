@@ -51,6 +51,20 @@ void PingPong(void* argument) {
     }
 }
 
+struct Wakeup {
+    Mutex mutex;
+    ConditionVariable changed;
+    bool ready = false;
+};
+
+void SignalAfterAShortDelay(void* argument) {
+    auto* const wakeup = static_cast<Wakeup*>(argument);
+    Thread::SleepFor(5'000'000); // 5 ms
+    const MutexLock lock(wakeup->mutex);
+    wakeup->ready = true;
+    wakeup->changed.NotifyAll();
+}
+
 } // namespace
 
 NX_TEST(Thread, RunsAndJoins) {
@@ -167,6 +181,26 @@ NX_TEST(ConditionVariable, WaitForTimesOut) {
     NX_CHECK(!signalled);
     // The bound is loose because Windows timers have about 15 ms resolution.
     NX_CHECK(elapsed >= kTimeout / 2);
+}
+
+NX_TEST(ConditionVariable, LongestTimeoutDoesNotWrapAround) {
+    // A timeout near the u64 maximum means "practically forever". Converting it to the platform's unit must
+    // not wrap around to a short wait that times out at once.
+    Wakeup wakeup;
+    Result<Thread, Error> created =
+        Thread::Create(ThreadDesc{.function = &SignalAfterAShortDelay, .argument = &wakeup});
+    NX_REQUIRE(created.IsOk());
+    Thread thread = Move(created).TakeValue();
+    bool timedOut = false;
+    {
+        const MutexLock lock(wakeup.mutex);
+        while (!wakeup.ready && !timedOut) {
+            timedOut = !wakeup.changed.WaitFor(wakeup.mutex, ~u64{0});
+        }
+    }
+    thread.Join();
+    NX_CHECK(!timedOut);
+    NX_CHECK(wakeup.ready);
 }
 
 NX_TEST(Thread, SleepForWaitsAtLeastRoughlyTheRequestedTime) {

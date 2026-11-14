@@ -74,7 +74,7 @@ struct DirectoryEntry {
     char name[kMaxNameLength] = {};
     /// Number of valid bytes in `name`.
     usize nameLength = 0;
-    /// True for a subdirectory.
+    /// True for a subdirectory. On POSIX a symbolic link is never a subdirectory, whatever it points to.
     bool isDirectory = false;
 
     /// Returns the name as a span. @since 0.1
@@ -117,6 +117,7 @@ public:
     /// @param outEntry Receives the entry. Untouched when the function returns false or an error.
     /// @return True if an entry was produced, false at the end of the directory.
     /// @error PathTooLong An entry name does not fit DirectoryEntry::kMaxNameLength.
+    /// @error InvalidPath An entry name is not valid UTF-16 (Windows only); the listing continues after it.
     /// @error IoError Reading the directory failed.
     /// @since 0.1
     [[nodiscard]] NX_PLATFORM_API Result<bool, Error> Next(DirectoryEntry& outEntry);

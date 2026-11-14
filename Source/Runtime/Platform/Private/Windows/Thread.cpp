@@ -114,9 +114,7 @@ void Thread::Join() {
 }
 
 void Thread::SleepFor(u64 nanoseconds) {
-    const u64 milliseconds = (nanoseconds + 999'999) / 1'000'000;
-    constexpr u64 kLongest = INFINITE - 1;
-    ::Sleep(static_cast<DWORD>(milliseconds < kLongest ? milliseconds : kLongest));
+    ::Sleep(Detail::ToWaitMilliseconds(nanoseconds));
 }
 
 void Thread::YieldTimeSlice() {
