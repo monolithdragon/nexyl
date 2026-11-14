@@ -60,11 +60,12 @@ NX_BASE_API AssertHandler SetAssertHandler(AssertHandler handler);
 namespace Detail {
 
 /// Reports a failed NX_ASSERT or NX_VERIFY. Terminates if the handler asks for it or there is no handler.
+/// For the static analyzer it never returns: a failed precondition is a bug, not a path to analyse further.
 /// @return Break or Continue.
 /// @threadsafety safe
 /// @since 0.1
-NX_BASE_API AssertAction ReportAssertionFailure(const char* condition, const char* message,
-                                                const SourceLocation& location);
+NX_ANALYZER_NORETURN NX_BASE_API AssertAction ReportAssertionFailure(const char* condition, const char* message,
+                                                                     const SourceLocation& location);
 
 /// Reports that an NX_UNREACHABLE point was reached, then terminates.
 /// @threadsafety safe
@@ -82,8 +83,9 @@ NX_BASE_API AssertAction ReportAssertionFailure(const char* condition, const cha
 
 /// Checks a precondition or invariant (docs/CODING_STANDARDS.md, section 5.5).
 /// Not evaluated when NX_ASSERTS_ENABLED is 0, so the condition MUST NOT have side effects (rule ERR-9).
+/// Static analysis always sees the checked form, so it analyses release configurations with the same knowledge.
 /// @since 0.1
-#if NX_ASSERTS_ENABLED
+#if NX_ASSERTS_ENABLED || NX_STATIC_ANALYSIS
 #define NX_ASSERT(condition, message)                                                                                  \
     do {                                                                                                               \
         if (!(condition)) [[unlikely]] {                                                                               \
@@ -104,7 +106,7 @@ NX_BASE_API AssertAction ReportAssertionFailure(const char* condition, const cha
 /// Like NX_ASSERT, but the expression is always evaluated, also when assertions are disabled.
 /// For expressions with a needed side effect.
 /// @since 0.1
-#if NX_ASSERTS_ENABLED
+#if NX_ASSERTS_ENABLED || NX_STATIC_ANALYSIS
 #define NX_VERIFY(condition) NX_ASSERT(condition, "")
 #else
 #define NX_VERIFY(condition)                                                                                           \
