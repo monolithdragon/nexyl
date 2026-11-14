@@ -575,6 +575,14 @@ A rule marked CI in this document whose gate is still planned is enforced by rev
 | TP-4 | The dependency is hidden behind a Nexyl interface. No third-party type appears in a public header. | CI |
 | TP-5 | Where the library allows it, its allocations are routed to a Nexyl allocator under the `ThirdParty` tag. | Review |
 
+### 21.1 Register
+
+Every approved third-party dependency is listed here (rule TP-2). The version is pinned when the dependency is first introduced.
+
+| Name | Version | Licence | Purpose | Owner | Used by | Status |
+|---|---|---|---|---|---|---|
+| mpmath | Pinned on introduction | BSD-3-Clause | Computes the high-precision reference values for the `Math` tests (D-27) | `Math` | An offline generator script; its output is committed. Not needed by the runtime, the build or CI. | Approved 2026-11-14, not yet introduced |
+
 ---
 
 ## 22. Rule basis and deviations
