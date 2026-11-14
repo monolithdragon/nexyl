@@ -2,7 +2,7 @@
 
 Nexyl is a modular C++23 real-time 2D/3D game and simulation engine with a self-owned runtime. The game engine ships first; industrial digital twins, training simulators and robotics build on the same runtime.
 
-**Status:** roadmap phase 1 (foundation). The build system, the module system and the CI gates exist. `Base` provides the core vocabulary: platform detection (`Config.h`), `Result`, `Error`, `Option`, `Span`, `Move`/`Forward`, `Atomic`, bit utilities, and the assert and log hooks. `Platform` has console output, a monotonic clock, system information, virtual memory, threads, mutexes and condition variables, files, directories and symbolic links, dynamic libraries, and AddressSanitizer annotations, for Windows and POSIX; windows, raw input and sockets come with their users. `Test` is the unit-test framework every module's tests use. `Memory` has `IAllocator`, the memory operations (`Memory::Copy` and the others), memory tags, `UniquePtr`, and the page, linear, stack, arena, pool, free-list (TLSF), heap, tracking and guard allocators. No other module exists yet. The three documents below are the source of truth. If this file disagrees with them, they win, and this file must be corrected.
+**Status:** roadmap phase 1 (foundation). The build system, the module system and the CI gates exist. `Base` provides the core vocabulary: platform detection (`Config.h`), `Result`, `Error`, `Option`, `Span`, `Move`/`Forward`, `Atomic`, bit utilities, and the assert and log hooks. `Platform` has console output, a monotonic clock, system information, virtual memory, threads, mutexes and condition variables, files, directories and symbolic links, dynamic libraries, and AddressSanitizer annotations, for Windows and POSIX; windows, raw input and sockets come with their users. `Test` is the unit-test framework every module's tests use. `Memory` has `IAllocator`, the memory operations (`Memory::Copy` and the others), memory tags, `UniquePtr`, and the page, linear, stack, arena, pool, free-list (TLSF), heap, tracking and guard allocators. `Containers` has `Array`, `String`, `StringView`, `HashMap`, `HashSet`, `Handle` and `HandlePool`, the fixed-seed hash functions, and sorting and binary search. No other module exists yet. The three documents below are the source of truth. If this file disagrees with them, they win, and this file must be corrected.
 
 ## Read before you write
 
@@ -19,7 +19,7 @@ Read the relevant sections, not just the headings. Rule IDs (for example `ERR-4`
 These are never broken, not even temporarily and not even in a prototype.
 
 1. **Layering.** A module depends only on modules in strictly lower layers. No same-layer dependencies. `Impl` and `Adapter` modules are leaves that only an `App` names.
-2. **No standard library.** No `std::` and no standard or C runtime headers outside the whitelist wrappers in `Base`. Use `Nexyl::Array`, `HashMap`, `String`, `Span`, `Memory::Copy`, `Nexyl::Math`.
+2. **No standard library.** No `std::` and no standard or C runtime headers outside the whitelist wrappers in `Base`. Use the `Containers` types (`Array`, `HashMap`, `String`, `StringView`), `Span`, `Memory::Copy` and `Nexyl::Math`.
 3. **No exceptions, no RTTI.** Fallible functions return `Result<T, Error>`. Fallible construction uses a static `Create` factory.
 4. **No global allocation.** No `new`, `delete`, `malloc`, `free`. Every allocation names an allocator chosen by lifetime class.
 5. **No static initialization.** No non-trivial globals, function-local statics or singletons. Nothing runs at library load.

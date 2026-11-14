@@ -225,10 +225,10 @@ Module responsibilities in one line each:
 |---|---|
 | `Base` | Compiler and platform detection, primitive type aliases, assert/log/profile hooks, `Result`, `Option`, `Span`, the only include site of whitelisted standard headers. Allocates nothing, calls no OS function. |
 | `Platform` | Hardware abstraction: virtual memory, threads, synchronisation, files, time, dynamic libraries, sockets, windows, raw input. Its API never allocates; callers supply buffers. Windows, raw input and sockets are added with the modules that use them (`Renderer`/`Input`, `Net`), so that their API follows real needs. |
-| `Memory` | Allocators, tags, budgets, tracking. |
+| `Memory` | Allocators, tags, budgets, tracking, `UniquePtr`. |
 | `Math` | Deterministic scalar, vector, matrix and quaternion math, transcendental functions, SIMD abstraction. |
 | `Test` | The engine's unit-test framework: test registration, checks, runner. Uses fixed-size static storage instead of `Memory` and `Containers`, so that every module, including those two, is tested with it. |
-| `Containers` | `Array`, `HashMap`, `String`, `StringView`, smart pointers, handles, handle pools. |
+| `Containers` | `Array`, `HashMap`, `HashSet`, `String`, `StringView`, handles, handle pools, sorting and search. |
 | `Jobs` | Work-stealing job scheduler, deterministic parallel-for, job handles. |
 | `Reflection` | Runtime type registry and type-info model; also hosts the generated tables for layer 0–3 types. |
 | `Serialization` | Reflection-driven binary and text archives, schema versioning, migration. |
@@ -1097,3 +1097,5 @@ The game engine is the first shippable milestone. Each phase ends with a verifia
 | D-28 | A `MemoryTag` is the owning module's `ModuleId` in the high 16 bits and a module-defined sub-tag in the low 16 bits, like an `ErrorCode`; the sub-tag `0xFFFF` is reserved for third-party code | Tags are unique without a central list, and `Memory` needs no knowledge of the modules above it | A central tag enumeration in `Memory` (it would name every higher module) |
 | D-29 | `Memory` declares the C runtime's `memcpy`, `memmove`, `memset` and `memcmp` itself and wraps them as `Memory::Copy`, `Move`, `Set` and `Compare` | Compilers emit calls to these four functions anyway, so they are linked into every binary; MSVC has no builtins for three of them | Hand-written loops (turned back into those calls, or slow without them); compiler builtins (need compiler conditionals outside `Base`) |
 | D-30 | The first `Heap` is TLSF pools plus pages of their own for large blocks, behind one mutex; `ArenaAllocator` is a chain of blocks from a parent allocator | Covers the allocator catalogue with the least code before `Jobs` exists; size classes and per-thread caches for small blocks follow when measurements show contention, without changing `IAllocator` | Per-thread caches now, designed before the thread roles of `Jobs` are known |
+| D-31 | `HashMap` and `HashSet` hash with the published, public-domain wyhash algorithm (Wang Yi), implemented anew in `Containers`, with a fixed seed | Fast and well distributed; the same bits on every platform, checked against reference values in the tests | FNV-1a (slow on long keys); xxHash64 (more code); per-process random seeds (break reproducible order) |
+| D-32 | `HashMap::Remove` moves the last entry into the gap in constant time; `RemoveOrdered` keeps the insertion order in linear time | Both orders are deterministic, which is what simulation needs; the common case stays O(1) | Tombstones with compaction (holes in iteration, more code); order-preserving removal only (always O(n)) |

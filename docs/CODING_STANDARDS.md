@@ -333,7 +333,7 @@ enum class BodyType : u8 { Static, Kinematic, Dynamic };
 | CLS-3 | An interface has only pure virtual functions, no data, and a protected non-virtual destructor. | Review |
 | CLS-4 | Overrides are marked `override`. | CI |
 | CLS-5 | Virtual calls do not appear inside per-element hot loops. Interfaces are batch-oriented. | Review |
-| CLS-6 | Single-argument constructors and conversion operators are `explicit`. The only exceptions are the converting constructors of the vocabulary wrappers `Result`, `Option` and `Span` from their payload, which are implicit by design and marked `explicit(false)` to show it. | CI |
+| CLS-6 | Single-argument constructors and conversion operators are `explicit`. The only exceptions are the converting constructors of the vocabulary wrappers `Result`, `Option` and `Span` from their payload, and of `StringView` from a string literal, which are implicit by design and marked `explicit(false)` to show it. | CI |
 | CLS-7 | Every data member has an initial value. | CI |
 | CLS-8 | Functions returning a value that must be used are `[[nodiscard]]`. | Review |
 | CLS-9 | Narrowing conversions are explicit. | CI |
