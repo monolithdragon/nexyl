@@ -124,6 +124,8 @@ The runtime does not use the C++ standard library or the C runtime library, with
 | `<bit>` | Bit casts and bit counting intrinsics | `BitCast`, bit utilities |
 | `<limits>` | Numeric limits | Nexyl numeric constants |
 
+One part of the C runtime cannot be avoided: compilers emit calls to `memcpy`, `memmove`, `memset` and `memcmp` on their own, for example to copy large structures, so every binary links them. `Memory` declares these four functions itself, in one private file, without including `<string.h>`, and exposes them as `Memory::Copy`, `Memory::Move`, `Memory::Set` and `Memory::Compare` (rule STL-4). No other C runtime function is used.
+
 ### 4.2 Rules
 
 | ID | Rule | Level |
@@ -223,7 +225,7 @@ Result<Mesh, Error> LoadMesh(StringView path, IAllocator& allocator) {
 
 | ID | Rule | Level |
 |---|---|---|
-| OWN-1 | Global `new`, `delete`, `malloc` and `free` are not used. Objects are created with `MakeUnique`, `MakeRef`, system factories, or `NX_NEW` / `NX_DELETE` inside low-level code. | CI |
+| OWN-1 | Global `new`, `delete`, `malloc` and `free` are not used. Objects are created with `MakeUnique`, `MakeRef`, system factories, or `Memory::New` / `Memory::Delete` inside low-level code. | CI |
 | OWN-2 | Every allocation names an allocator chosen by lifetime class (architecture document, section 5.5). Persistent heap allocations carry a tag. | CI |
 | OWN-3 | Order of preference: value, then `Handle`, then `UniquePtr`, then `Ref`. Shared ownership needs a reason. | Review |
 | OWN-4 | References between systems are handles, not pointers. | Review |
@@ -557,7 +559,7 @@ There is no registration code and no `main`. The build scans the module's test s
 | ID | Rule | Level |
 |---|---|---|
 | TEST-8 | `NX_TEST` never appears inside conditional compilation. Configuration-dependent checks go inside the test body. | CI |
-| TEST-9 | Checks are made only from the thread that runs the test. (This is lifted once `Base` has an atomic wrapper.) | Review |
+| TEST-9 | Checks are made only from the thread that runs the test. (This is lifted once the runner keeps its per-test state in `Atomic`.) | Review |
 
 A test executable accepts `--filter <text>` (substring of `Suite.Name`), `--list` and `--help`. While tests run, a failed `NX_ASSERT` in the code under test is reported with its location and ends the run.
 

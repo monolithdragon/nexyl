@@ -124,6 +124,23 @@
 #endif
 #endif
 
+/// 1 when the code is compiled with AddressSanitizer, otherwise 0. Allocators that manage memory themselves use
+/// it to tell the sanitizer which bytes are in use (Platform/Sanitizer.h).
+/// @since 0.1
+#if defined(__SANITIZE_ADDRESS__)
+#define NX_ASAN_ENABLED 1
+#elif defined(__has_feature)
+// Clang reports sanitizers through __has_feature. It is tested in a nested #if because other preprocessors
+// cannot parse it.
+#if __has_feature(address_sanitizer)
+#define NX_ASAN_ENABLED 1
+#else
+#define NX_ASAN_ENABLED 0
+#endif
+#else
+#define NX_ASAN_ENABLED 0
+#endif
+
 // ---- Utility macros ----------------------------------------------------------------------------------------
 
 /// Pastes two tokens together after expanding them. @since 0.1
@@ -143,6 +160,25 @@ extern "C" void __cdecl __debugbreak(void);
 #define NX_DEBUG_BREAK() __builtin_debugtrap()
 #else
 #define NX_DEBUG_BREAK() __builtin_trap()
+#endif
+
+/// 1 while the Clang static analyzer or clang-tidy examines the code, otherwise 0. The code is then analysed,
+/// never compiled into a binary. Assertions stay checked during analysis in every configuration (Assert.h).
+/// @since 0.1
+#if defined(__clang_analyzer__)
+#define NX_STATIC_ANALYSIS 1
+#else
+#define NX_STATIC_ANALYSIS 0
+#endif
+
+/// Tells the Clang static analyzer that a function does not return, although at run time it may. Marks the
+/// reporter of failed assertions, so that the analyzer treats every asserted condition as true afterwards instead
+/// of exploring paths that only a broken precondition can reach. Expands to nothing for the compilers.
+/// @since 0.1
+#if NX_STATIC_ANALYSIS
+#define NX_ANALYZER_NORETURN __attribute__((analyzer_noreturn))
+#else
+#define NX_ANALYZER_NORETURN
 #endif
 
 /// Tells the optimiser that this point cannot be reached. Use NX_UNREACHABLE() instead, which also checks.
