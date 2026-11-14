@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Nexyl/Base/Std/Bit.h>
 #include <Nexyl/Base/Traits.h>
 
 namespace Nexyl {
@@ -63,6 +64,20 @@ template <typename T, typename U = T>
     T oldValue = Move(target);
     target = Forward<U>(newValue);
     return oldValue;
+}
+
+/// Reinterprets the bytes of a value as another type of the same size (rule CFG-2).
+///
+/// The only sanctioned way to type-pun; `reinterpret_cast` between unrelated object types breaks strict aliasing.
+///
+/// @param value The value whose bytes are reinterpreted.
+/// @return A `TTo` with the same object representation.
+/// @threadsafety safe
+/// @since 0.1
+template <typename TTo, typename TFrom>
+    requires(sizeof(TTo) == sizeof(TFrom) && TriviallyCopyable<TTo> && TriviallyCopyable<TFrom>)
+[[nodiscard]] constexpr TTo BitCast(const TFrom& value) noexcept {
+    return std::bit_cast<TTo>(value);
 }
 
 } // namespace Nexyl

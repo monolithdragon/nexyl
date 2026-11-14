@@ -113,7 +113,7 @@ The runtime does not use the C++ standard library or the C runtime library, with
 |---|---|---|
 | `<cstddef>` | Fundamental size and pointer types, `offsetof` | `usize`, `isize` |
 | `<cstdint>` | Fixed-width integer types | `u8` … `u64`, `i8` … `i64` |
-| `<new>` | Placement new, `launder` | `Memory` construction helpers |
+| `<new>` | Placement new, `launder` | `ConstructAt`, `DestroyAt` (`Base/Construct.h`) |
 | `<initializer_list>` | Brace initialization is tied to this type by the language | `InitializerList<T>` |
 | `<compare>` | Result types of three-way comparison | Nexyl ordering aliases |
 | `<type_traits>` | Many traits are compiler intrinsics | Nexyl trait aliases and concepts |

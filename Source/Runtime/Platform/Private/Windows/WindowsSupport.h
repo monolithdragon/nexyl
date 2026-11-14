@@ -3,6 +3,7 @@
 // Helpers shared by the Windows implementation files. Not part of the public API.
 
 #include <Nexyl/Base/Error.h>
+#include <Nexyl/Base/Result.h>
 #include <Nexyl/Base/SourceLocation.h>
 #include <Nexyl/Base/Span.h>
 #include <Nexyl/Base/Types.h>

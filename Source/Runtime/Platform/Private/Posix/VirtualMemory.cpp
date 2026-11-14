@@ -24,7 +24,7 @@ int ToProtection(MemoryAccess access) {
     NX_UNREACHABLE();
 }
 
-bool IsPageMultiple(usize value) {
+[[maybe_unused]] bool IsPageMultiple(usize value) {
     return value != 0 && value % GetSystemInfo().pageSize == 0;
 }
 
