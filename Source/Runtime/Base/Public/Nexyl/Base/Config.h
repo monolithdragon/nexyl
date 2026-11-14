@@ -124,6 +124,23 @@
 #endif
 #endif
 
+/// 1 when the code is compiled with AddressSanitizer, otherwise 0. Allocators that manage memory themselves use
+/// it to tell the sanitizer which bytes are in use (Platform/Sanitizer.h).
+/// @since 0.1
+#if defined(__SANITIZE_ADDRESS__)
+#define NX_ASAN_ENABLED 1
+#elif defined(__has_feature)
+// Clang reports sanitizers through __has_feature. It is tested in a nested #if because other preprocessors
+// cannot parse it.
+#if __has_feature(address_sanitizer)
+#define NX_ASAN_ENABLED 1
+#else
+#define NX_ASAN_ENABLED 0
+#endif
+#else
+#define NX_ASAN_ENABLED 0
+#endif
+
 // ---- Utility macros ----------------------------------------------------------------------------------------
 
 /// Pastes two tokens together after expanding them. @since 0.1
