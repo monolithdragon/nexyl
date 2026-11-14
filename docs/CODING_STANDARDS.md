@@ -113,7 +113,7 @@ The runtime does not use the C++ standard library or the C runtime library, with
 |---|---|---|
 | `<cstddef>` | Fundamental size and pointer types, `offsetof` | `usize`, `isize` |
 | `<cstdint>` | Fixed-width integer types | `u8` … `u64`, `i8` … `i64` |
-| `<new>` | Placement new, `launder` | `Memory` construction helpers |
+| `<new>` | Placement new, `launder` | `ConstructAt`, `DestroyAt` (`Base/Construct.h`) |
 | `<initializer_list>` | Brace initialization is tied to this type by the language | `InitializerList<T>` |
 | `<compare>` | Result types of three-way comparison | Nexyl ordering aliases |
 | `<type_traits>` | Many traits are compiler intrinsics | Nexyl trait aliases and concepts |
@@ -275,6 +275,7 @@ Result<Mesh, Error> LoadMesh(StringView path, IAllocator& allocator) {
 | NAME-2 | Quantities are SI and carry no unit suffix. A non-SI quantity at a boundary names its unit: `timeoutMs`. | Review |
 | NAME-3 | `struct` is for passive data with public members and no invariant. Everything else is a `class`. | Review |
 | NAME-4 | Names are English, descriptive and unabbreviated except for widely known terms. | Review |
+| NAME-5 | No function, method or type is named like a Windows API macro (for example `CreateDirectory`, `DeleteFile`, `RemoveDirectory`, `LoadLibrary`, `CreateMutex`, `CopyMemory`, `Yield`). Inside files that include `<Windows.h>` such names are silently rewritten to their `A`/`W` variants, which breaks linking. | Review |
 
 Reference example:
 
