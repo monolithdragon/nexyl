@@ -210,6 +210,18 @@ class SourceRuleTests(GateTestCase):
         )
         self.assertEqual(self.repository.source_rules(), [])
 
+    def test_placement_new_is_not_allocation(self) -> None:
+        self.repository.add_module(
+            "Scene",
+            "Feature",
+            10,
+            files={
+                "Private/A.cpp": "void F(void* p) {\n    ::new (static_cast<void*>(p)) Item(1);\n"
+                "    new (p) ::Ns::Item;\n    int* q = new (int);\n}\n"
+            },
+        )
+        self.assertEqual(self.repository.source_rules(), ["OWN-1"])
+
     def test_memory_module_may_allocate(self) -> None:
         self.repository.add_module("Memory", "Foundation", 2, files={"Private/A.cpp": "int* a = new int;\n"})
         self.assertEqual(self.repository.source_rules(), [])
