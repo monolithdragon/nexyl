@@ -192,6 +192,8 @@ struct TypeInfo {
     const char* category = "";
     /// `@renamed-from`, or empty.
     const char* renamedFrom = "";
+    /// The schema version from `@version`; 1 without the tag. Archives store it with the data.
+    u32 version = 1;
     /// Record: the reflected base class, or null.
     TypeId base;
     /// Record: the type's own data members, in declaration order (the base's are in the base's TypeInfo).
@@ -206,6 +208,10 @@ struct TypeInfo {
     usize count = 0;
     /// How objects are created and destroyed.
     TypeLifecycle lifecycle;
+    /// Record with private fields: confirms their offsets on a default-constructed object, because the compiler
+    /// cannot check them at compile time; null otherwise, or when the type has no accessible default
+    /// constructor. Tests call it (docs/NEXYL_ARCHITECTURE.md, section 8.7).
+    bool (*checkLayout)() = nullptr;
     /// Array: element access.
     const ArrayOperations* arrayOperations = nullptr;
     /// String: text access.

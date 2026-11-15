@@ -161,7 +161,7 @@ bool Allowed(const std::string& name, TagTarget target) {
     if (name == "category" || name == "noscript") {
         return target != TagTarget::EnumValue;
     }
-    if (name == "opaque") {
+    if (name == "opaque" || name == "version") {
         return target == TagTarget::Type;
     }
     return target == TagTarget::Field;
@@ -181,7 +181,7 @@ bool ParseDocComment(const std::string& raw, TagTarget target, Tags& tags, std::
         }
         static constexpr const char* kReflectionTags[] = {"units",        "range",    "step",   "transient",
                                                           "presentation", "readonly", "hidden", "category",
-                                                          "renamed-from", "noscript", "opaque"};
+                                                          "renamed-from", "noscript", "opaque", "version"};
         bool known = false;
         for (const char* name : kReflectionTags) {
             known = known || tag.name == name;
@@ -195,7 +195,7 @@ bool ParseDocComment(const std::string& raw, TagTarget target, Tags& tags, std::
             return false;
         }
         const bool needsValue = tag.name == "units" || tag.name == "range" || tag.name == "step" ||
-                                tag.name == "category" || tag.name == "renamed-from";
+                                tag.name == "category" || tag.name == "renamed-from" || tag.name == "version";
         if (needsValue && tag.value.empty()) {
             error = "the tag '@" + tag.name + "' needs a value";
             return false;
@@ -225,6 +225,14 @@ bool ParseDocComment(const std::string& raw, TagTarget target, Tags& tags, std::
                 error = "'@step' needs a positive number";
                 return false;
             }
+        } else if (tag.name == "version") {
+            double version = 0.0;
+            if (!ParseNumber(tag.value, version) || version < 1.0 || version > 1'000'000.0 ||
+                version != static_cast<double>(static_cast<std::uint32_t>(version))) {
+                error = "'@version' needs a whole number from 1";
+                return false;
+            }
+            tags.version = static_cast<std::uint32_t>(version);
         } else if (tag.name == "opaque") {
             tags.opaque = true;
         } else if (tag.name == "transient") {

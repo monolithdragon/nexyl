@@ -113,6 +113,44 @@ std::string Module(const std::string& module) {
     return result;
 }
 
+// Pointers to the private fields of a record, obtained through explicit instantiation, which the language
+// exempts from access checking, and a function that compares their offsets with the tool's on an object.
+void WriteLayoutCheck(std::string& out, const TypeModel& type, std::size_t index) {
+    const std::string cpp = "::" + type.name;
+    const std::string number = std::to_string(index);
+    std::vector<std::string> comparisons;
+    for (std::size_t fieldIndex = 0; fieldIndex < type.fields.size(); ++fieldIndex) {
+        const FieldModel& field = type.fields[fieldIndex];
+        if (field.isPublic) {
+            continue;
+        }
+        const std::string tag = "PrivateTag" + number + "_" + std::to_string(fieldIndex);
+        out += "struct ";
+        out += tag;
+        out += " {\n    using Type = Detail::MemberPointerOf<";
+        out += cpp;
+        out += ", ";
+        out += field.typeSpelling;
+        out += ">;\n    friend constexpr Type PrivateMemberPointer(";
+        out += tag;
+        out += ");\n};\ntemplate struct PrivateMember<";
+        out += tag;
+        out += ", &";
+        out += cpp;
+        out += "::";
+        out += field.name;
+        out += ">;\n";
+        comparisons.push_back("Detail::MemberOffset(object, object.*PrivateMemberPointer(" + tag +
+                              "{})) == " + std::to_string(field.offset));
+    }
+    out += "template <typename T>\nbool CheckLayout" + number + "() {\n";
+    out += "    if constexpr (Nexyl::DefaultConstructible<T>) {\n        const T object{};\n        return ";
+    for (std::size_t comparison = 0; comparison < comparisons.size(); ++comparison) {
+        out += (comparison == 0 ? "" : " &&\n               ") + comparisons[comparison];
+    }
+    out += ";\n    } else {\n        return true;\n    }\n}\n";
+}
+
 void WriteRecord(std::string& out, const TypeModel& type, std::size_t index) {
     const std::string cpp = "::" + type.name;
     const std::string number = std::to_string(index);
@@ -130,10 +168,19 @@ void WriteRecord(std::string& out, const TypeModel& type, std::size_t index) {
         out += "};\n";
         fields = "Span<const FieldInfo>(kFields" + number + ")";
     }
+    bool hasPrivate = false;
+    for (const FieldModel& field : type.fields) {
+        hasPrivate = hasPrivate || !field.isPublic;
+    }
+    std::string checkLayout = "nullptr";
+    if (hasPrivate) {
+        WriteLayoutCheck(out, type, index);
+        checkLayout = "Nexyl::DefaultConstructible<" + cpp + "> ? &CheckLayout" + number + "<" + cpp + "> : nullptr";
+    }
     out += "constexpr TypeInfo kType" + number + " = MakeRecordType<" + cpp + ">(" + Literal(type.name) + ", " +
            Hex(type.id) + ", " + TypeFlags(type.tags) + ", " + Literal(type.tags.description) + ", " +
-           Literal(type.tags.category) + ", " + Literal(type.tags.renamedFrom) + ", " + Hex(type.baseId) + ", " +
-           fields + ");\n";
+           Literal(type.tags.category) + ", " + Literal(type.tags.renamedFrom) + ", " +
+           std::to_string(type.tags.version) + ", " + Hex(type.baseId) + ", " + fields + ", " + checkLayout + ");\n";
     for (const FieldModel& field : type.fields) {
         if (!field.isPublic) {
             continue;
@@ -164,8 +211,8 @@ void WriteEnum(std::string& out, const TypeModel& type, std::size_t index) {
     }
     out += "constexpr TypeInfo kType" + number + " = MakeEnumType<" + cpp + ">(" + Literal(type.name) + ", " +
            Hex(type.id) + ", " + TypeFlags(type.tags) + ", " + Literal(type.tags.description) + ", " +
-           Literal(type.tags.category) + ", " + Literal(type.tags.renamedFrom) + ", " + Hex(type.underlyingId) + ", " +
-           values + ");\n";
+           Literal(type.tags.category) + ", " + Literal(type.tags.renamedFrom) + ", " +
+           std::to_string(type.tags.version) + ", " + Hex(type.underlyingId) + ", " + values + ");\n";
     for (const EnumValueModel& value : type.values) {
         out += "static_assert(static_cast<i64>(" + cpp + "::" + value.name + ") == " + Integer(value.value) +
                ", \"Tools.NHT and the compiler disagree on the value of " + type.name + "::" + value.name + ".\");\n";
@@ -195,6 +242,11 @@ std::string GenerateTable(const ModuleModel& model) {
     out += "\nnamespace Nexyl::Reflection::Generated {\n\nnamespace {\n\n";
     out += "using Detail::MakeEnumType;\nusing Detail::MakeEnumValue;\nusing Detail::MakeField;\n";
     out += "using Detail::MakeOpaqueType;\nusing Detail::MakeRecordType;\n\n";
+    out += "// Defines PrivateMemberPointer(TTag) for the tag type of one private field: an explicit instantiation of\n"
+           "// this template names the field, and explicit instantiations are exempt from access checking.\n";
+    out +=
+        "template <typename TTag, typename TTag::Type TMember>\nstruct PrivateMember {\n"
+        "    friend constexpr typename TTag::Type PrivateMemberPointer(TTag) {\n        return TMember;\n    }\n};\n\n";
 
     for (std::size_t index = 0; index < model.types.size(); ++index) {
         const TypeModel& type = model.types[index];

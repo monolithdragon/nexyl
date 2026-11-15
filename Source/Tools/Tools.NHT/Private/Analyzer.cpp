@@ -429,6 +429,7 @@ private:
             return false;
         }
         field.offset = static_cast<std::uint64_t>(offset / 8);
+        field.typeSpelling = Take(clang_getTypeSpelling(clang_getCanonicalType(type)));
         return true;
     }
 
