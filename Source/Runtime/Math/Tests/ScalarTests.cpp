@@ -1,5 +1,6 @@
 #include <Nexyl/Base/Types.h>
 #include <Nexyl/Base/Utility.h>
+#include <Nexyl/Math/Functions.h>
 #include <Nexyl/Math/Scalar.h>
 #include <Nexyl/Test/Test.h>
 
@@ -40,6 +41,25 @@ NX_TEST(Scalar, MinAndMaxSelectTheFirstOperandForNaNAndZeros) {
     NX_CHECK(IsNaN(Min(nan, 1.0f)) && Min(1.0f, nan) == 1.0f);
     NX_CHECK(IsNaN(Max(nan, 1.0f)) && Max(1.0f, nan) == 1.0f);
     NX_CHECK(BitCast<u32>(Min(-0.0f, 0.0f)) == 0x8000'0000U && BitCast<u32>(Max(0.0f, -0.0f)) == 0);
+    NX_CHECK(BitCast<u32>(Min(0.0f, -0.0f)) == 0 && BitCast<u32>(Max(-0.0f, 0.0f)) == 0x8000'0000U);
+}
+
+NX_TEST(Scalar, ClampKeepsTheValueAtAZeroBoundAndNaN) {
+    NX_CHECK(BitCast<u32>(Clamp(-0.0f, 0.0f, 1.0f)) == 0x8000'0000U && BitCast<u32>(Clamp(0.0f, -0.0f, 1.0f)) == 0);
+    NX_CHECK(BitCast<u32>(Clamp(0.0f, -1.0f, -0.0f)) == 0 && BitCast<u32>(Clamp(-0.0f, -1.0f, 0.0f)) == 0x8000'0000U);
+    NX_CHECK(Clamp(2.0f, 0.0f, 1.0f) == 1.0f && Clamp(-2.0, 0.0, 1.0) == 0.0 && Clamp<i32>(5, 0, 3) == 3);
+    NX_CHECK(IsNaN(Clamp(QuietNaN<f32>(), 0.0f, 1.0f)));
+}
+
+NX_TEST(Scalar, MinMaxAndClampGiveTheSameBitsWhenFoldedAndWhenRun) {
+    // An optimising compiler folds the literal cases above. Sin(0) is +0, computed in another translation unit,
+    // so these calls run the generated code; both paths must give the same bits.
+    const f32 zero = Sin(0.0f);
+    const f32 negativeZero = -zero;
+    NX_CHECK(BitCast<u32>(Min(negativeZero, zero)) == 0x8000'0000U && BitCast<u32>(Max(zero, negativeZero)) == 0);
+    NX_CHECK(BitCast<u32>(Min(zero, negativeZero)) == 0 && BitCast<u32>(Max(negativeZero, zero)) == 0x8000'0000U);
+    NX_CHECK(BitCast<u32>(Clamp(negativeZero, zero, 1.0f)) == 0x8000'0000U &&
+             BitCast<u32>(Clamp(zero, -1.0f, negativeZero)) == 0);
 }
 
 NX_TEST(Scalar, SqrtIsTheCorrectlyRoundedPrimitive) {

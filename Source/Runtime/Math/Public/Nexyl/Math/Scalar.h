@@ -67,6 +67,21 @@ template <Real T>
     return BitCast<T>(bits);
 }
 
+/// Returns `ifTrue` if `condition` holds, otherwise `ifFalse`. A floating-point value is selected through a mask on
+/// its bits: MSVC (19.51, /O2) recognises `b < a ? b : a` as a minimum and, when it folds constant operands, returns
+/// the other of two zeros than the code it generates, so the same call would give different bits depending on
+/// whether it was folded. @since 0.1
+template <typename T>
+[[nodiscard]] constexpr T Select(bool condition, T ifTrue, T ifFalse) {
+    if constexpr (Real<T>) {
+        using Bits = typename FloatLayout<T>::Bits;
+        const Bits mask = static_cast<Bits>(0) - static_cast<Bits>(condition);
+        return FromBits<T>((ToBits(ifTrue) & mask) | (ToBits(ifFalse) & ~mask));
+    } else {
+        return condition ? ifTrue : ifFalse;
+    }
+}
+
 } // namespace Detail
 
 /// pi. @since 0.1
@@ -136,24 +151,21 @@ template <Real T>
 /// zeros, returns `first`. @threadsafety safe @determinism deterministic @since 0.1
 template <typename T>
 [[nodiscard]] constexpr T Min(T first, T second) {
-    return second < first ? second : first;
+    return Detail::Select(second < first, second, first);
 }
 
 /// Returns the larger value by comparison and selection (rule DET-4). If either is NaN, returns `first`; of two
 /// zeros, returns `first`. @threadsafety safe @determinism deterministic @since 0.1
 template <typename T>
 [[nodiscard]] constexpr T Max(T first, T second) {
-    return first < second ? second : first;
+    return Detail::Select(first < second, second, first);
 }
 
 /// Limits a value to [low, high] by comparison and selection (rule DET-4). NaN stays NaN.
 /// @pre `low` <= `high`. @threadsafety safe @determinism deterministic @since 0.1
 template <typename T>
 [[nodiscard]] constexpr T Clamp(T value, T low, T high) {
-    if (value < low) {
-        return low;
-    }
-    return high < value ? high : value;
+    return Detail::Select(value < low, low, Detail::Select(high < value, high, value));
 }
 
 /// Rounds toward zero. Keeps the sign of zero; infinities and NaN pass through.
