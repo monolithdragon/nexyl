@@ -42,6 +42,9 @@ STD_WHITELIST = frozenset(
         "atomic",
         "bit",
         "limits",
+        # CPU intrinsics, for the correctly rounded square root and, later, SIMD (decision D-33).
+        "emmintrin.h",
+        "arm_neon.h",
     }
 )
 STD_WRAPPER_DIRECTORY = ("Public", "Nexyl", "Base", "Std")

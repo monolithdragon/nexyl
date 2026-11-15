@@ -123,6 +123,7 @@ The runtime does not use the C++ standard library or the C runtime library, with
 | `<atomic>` | Portable atomics | `Atomic<T>` |
 | `<bit>` | Bit casts and bit counting intrinsics | `BitCast`, bit utilities |
 | `<limits>` | Numeric limits | Nexyl numeric constants |
+| `<emmintrin.h>` (x64), `<arm_neon.h>` (ARM64) | The correctly rounded square-root instruction has no portable spelling (D-33) | `SquareRoot` (`Base/FloatingPoint.h`); SIMD types later |
 
 One part of the C runtime cannot be avoided: compilers emit calls to `memcpy`, `memmove`, `memset` and `memcmp` on their own, for example to copy large structures, so every binary links them. `Memory` declares these four functions itself, in one private file, without including `<string.h>`, and exposes them as `Memory::Copy`, `Memory::Move`, `Memory::Set` and `Memory::Compare` (rule STL-4). No other C runtime function is used.
 
