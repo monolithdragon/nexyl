@@ -33,6 +33,8 @@ enum class ModuleId : u16 {
     Profile = 7,
     /// The Reflection module.
     Reflection = 8,
+    /// The Serialization module.
+    Serialization = 9,
 };
 
 /// Satisfied by an enumeration that holds one module's error codes (rule ERR, section 5.2).
