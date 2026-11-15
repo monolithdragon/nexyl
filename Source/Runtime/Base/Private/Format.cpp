@@ -1,5 +1,7 @@
 #include <Nexyl/Base/Format.h>
 
+#include "FormatInternal.h"
+
 #include <Nexyl/Base/Assert.h>
 
 namespace Nexyl {
@@ -18,31 +20,6 @@ constexpr usize kMaxIntegerDigits = 64; // u64 in binary
         ++length;
     }
     return length;
-}
-
-// Writes a number made of an optional sign, an optional prefix and its digits, honouring width, alignment and
-// zero padding.
-void WriteNumber(FormatWriter& writer, const FormatSpec& spec, const char* prefix, usize prefixSize, const char* digits,
-                 usize digitCount) {
-    const usize length = prefixSize + digitCount;
-    if (spec.zeroPad && spec.align == FormatAlign::Default) {
-        writer.Write(prefix, prefixSize);
-        if (spec.width > length) {
-            writer.WriteRepeated('0', spec.width - length);
-        }
-        writer.Write(digits, digitCount);
-        return;
-    }
-    constexpr usize kMaxPrefix = 3;
-    char joined[kMaxPrefix + kMaxIntegerDigits] = {};
-    NX_ASSERT(prefixSize <= kMaxPrefix && digitCount <= kMaxIntegerDigits, "Number too long.");
-    for (usize index = 0; index < prefixSize; ++index) {
-        joined[index] = prefix[index];
-    }
-    for (usize index = 0; index < digitCount; ++index) {
-        joined[prefixSize + index] = digits[index];
-    }
-    writer.WritePadded(spec, joined, length, FormatAlign::Right);
 }
 
 void FormatInteger(FormatWriter& writer, const FormatSpec& spec, u64 magnitude, bool negative) {
@@ -96,7 +73,7 @@ void FormatInteger(FormatWriter& writer, const FormatSpec& spec, u64 magnitude, 
         prefix[prefixSize++] = alternatePrefix[0];
         prefix[prefixSize++] = alternatePrefix[1];
     }
-    WriteNumber(writer, spec, prefix, prefixSize, digits, count);
+    Detail::WriteNumber(writer, spec, prefix, prefixSize, digits, count);
 }
 
 void FormatSigned(FormatWriter& writer, const FormatSpec& spec, u64 bits) {
@@ -137,7 +114,8 @@ void FormatOne(FormatWriter& writer, const FormatSpec& spec, const Detail::Forma
             FormatInteger(writer, spec, arg.bits, false);
             return;
         case Detail::FormatCategory::FloatingPoint:
-            NX_UNREACHABLE();
+            Detail::FormatFloatingPoint(writer, spec, arg.bits, arg.size);
+            return;
         case Detail::FormatCategory::Text:
             if (arg.pointer == nullptr) {
                 writer.WriteText(spec, "(null)", 6);
@@ -200,6 +178,35 @@ void FormatWriter::WriteText(const FormatSpec& spec, const char* text, usize siz
 }
 
 namespace Detail {
+
+void WriteNumber(FormatWriter& writer, const FormatSpec& spec, const char* prefix, usize prefixSize, const char* body,
+                 usize bodySize, bool allowZeroPad) {
+    const usize length = prefixSize + bodySize;
+    if (spec.zeroPad && allowZeroPad && spec.align == FormatAlign::Default) {
+        writer.Write(prefix, prefixSize);
+        if (spec.width > length) {
+            writer.WriteRepeated('0', spec.width - length);
+        }
+        writer.Write(body, bodySize);
+        return;
+    }
+    if (spec.width <= length) {
+        writer.Write(prefix, prefixSize);
+        writer.Write(body, bodySize);
+        return;
+    }
+    const usize padding = spec.width - length;
+    usize before = padding;
+    if (spec.align == FormatAlign::Left) {
+        before = 0;
+    } else if (spec.align == FormatAlign::Center) {
+        before = padding / 2;
+    }
+    writer.WriteRepeated(spec.fill, before);
+    writer.Write(prefix, prefixSize);
+    writer.Write(body, bodySize);
+    writer.WriteRepeated(spec.fill, padding - before);
+}
 
 void FormatArgs(FormatWriter& writer, const char* text, usize size, Span<const FormatArg> args) {
     usize argument = 0;

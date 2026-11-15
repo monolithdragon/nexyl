@@ -19,6 +19,8 @@ consteval FormatCategory FormatCategoryOf() {
         return FormatCategory::SignedInteger;
     } else if constexpr (Integral<U>) {
         return FormatCategory::UnsignedInteger;
+    } else if constexpr (SameAs<U, f32> || SameAs<U, f64>) {
+        return FormatCategory::FloatingPoint;
     } else if constexpr (ArrayType<U>) {
         return SameAs<RemoveCv<RemoveExtent<U>>, char> ? FormatCategory::Text : FormatCategory::Custom;
     } else if constexpr (PointerType<U>) {
@@ -62,7 +64,7 @@ template <typename T>
             arg.bits = BitCast<u32>(value);
             arg.size = sizeof(f32);
         } else {
-            arg.bits = BitCast<u64>(static_cast<f64>(value));
+            arg.bits = BitCast<u64>(value);
             arg.size = sizeof(f64);
         }
     } else if constexpr (kCategory == FormatCategory::Text) {
