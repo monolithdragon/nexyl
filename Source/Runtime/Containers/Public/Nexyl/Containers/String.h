@@ -2,6 +2,7 @@
 
 #include <Nexyl/Base/Assert.h>
 #include <Nexyl/Base/Error.h>
+#include <Nexyl/Base/Format.h>
 #include <Nexyl/Base/Result.h>
 #include <Nexyl/Base/Types.h>
 #include <Nexyl/Containers/Hash.h>
@@ -164,6 +165,16 @@ private:
     usize m_capacity = 0;
     Memory::IAllocator* m_allocator = nullptr;
 };
+
+/// Formats a string as text, like a `{:s}` field: the precision cuts it, the width pads it.
+/// @param writer Receives the text.
+/// @param spec   The field's spec.
+/// @param text   The string. Borrowed for the duration of the call.
+/// @threadsafety safe
+/// @since 0.1
+inline void FormatValue(FormatWriter& writer, const FormatSpec& spec, const String& text) {
+    writer.WriteText(spec, text.Data(), text.Size());
+}
 
 /// Hashes the text of a string. Equal to the hash of a StringView with the same text, so a HashMap keyed by
 /// String can be searched with a StringView.

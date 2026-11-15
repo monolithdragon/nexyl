@@ -75,4 +75,44 @@ concept MoveConstructible = std::is_move_constructible_v<T>;
 template <typename T>
 concept LvalueReference = std::is_lvalue_reference_v<T>;
 
+/// `T` unchanged. As a parameter type, it keeps that parameter out of template argument deduction.
+/// @since 0.1
+template <typename T>
+using TypeIdentity = std::type_identity_t<T>;
+
+/// `T` with any top-level const and volatile removed.
+/// @since 0.1
+template <typename T>
+using RemoveCv = std::remove_cv_t<T>;
+
+/// The type `T` points to, or `T` itself if it is not a pointer.
+/// @since 0.1
+template <typename T>
+using RemovePointer = std::remove_pointer_t<T>;
+
+/// The element type of the array type `T`, or `T` itself if it is not an array.
+/// @since 0.1
+template <typename T>
+using RemoveExtent = std::remove_extent_t<T>;
+
+/// Satisfied when `T` is a pointer type (not a pointer to member).
+/// @since 0.1
+template <typename T>
+concept PointerType = std::is_pointer_v<T>;
+
+/// Satisfied when `T` is the type of `nullptr`.
+/// @since 0.1
+template <typename T>
+concept NullPointerType = std::is_null_pointer_v<T>;
+
+/// Satisfied when `T` is an array type.
+/// @since 0.1
+template <typename T>
+concept ArrayType = std::is_array_v<T>;
+
+/// Satisfied when `T` is a signed integer type.
+/// @since 0.1
+template <typename T>
+concept SignedIntegral = std::signed_integral<T>;
+
 } // namespace Nexyl

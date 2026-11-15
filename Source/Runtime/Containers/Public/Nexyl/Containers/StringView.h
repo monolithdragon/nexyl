@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Nexyl/Base/Assert.h>
+#include <Nexyl/Base/Format.h>
 #include <Nexyl/Base/Option.h>
 #include <Nexyl/Base/Types.h>
 #include <Nexyl/Containers/Hash.h>
@@ -194,6 +195,16 @@ private:
     const char* m_data = nullptr;
     usize m_size = 0;
 };
+
+/// Formats a view as text, like a `{:s}` field: the precision cuts it, the width pads it.
+/// @param writer Receives the text.
+/// @param spec   The field's spec.
+/// @param text   The text. Borrowed for the duration of the call.
+/// @threadsafety safe
+/// @since 0.1
+inline void FormatValue(FormatWriter& writer, const FormatSpec& spec, StringView text) {
+    writer.WriteText(spec, text.Data(), text.Size());
+}
 
 /// Hashes the bytes of a view. Equal to the hash of a String with the same text.
 /// @param text The text.

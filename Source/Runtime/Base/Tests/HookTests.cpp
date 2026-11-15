@@ -21,9 +21,10 @@ AssertAction RecordAssert(const AssertInfo& info) {
 LogRecord g_lastLog;
 i32 g_logCount = 0;
 
-void RecordLog(const LogRecord& record) {
+void RecordLog(void* context, const LogRecord& record) {
     g_lastLog = record;
     ++g_logCount;
+    ++*static_cast<i32*>(context);
 }
 
 } // namespace
@@ -55,24 +56,57 @@ NX_TEST(AssertHook, VerifyAlwaysEvaluates) {
     NX_CHECK(sideEffects == 1);
 }
 
-NX_TEST(LogHook, ForwardsRecordsToTheInstalledSink) {
+NX_TEST(LogHook, ForwardsRecordsToTheInstalledBinding) {
     g_logCount = 0;
-    const LogSink previous = SetLogSink(&RecordLog);
+    i32 contextCalls = 0;
+    const LogSinkBinding binding{&RecordLog, &contextCalls};
+    const LogSinkBinding* const previous = SetLogSink(&binding);
 
     const char text[] = "hello";
     WriteLog(LogRecord{LogLevel::Warning, text, 5, NX_SOURCE_LOCATION});
     NX_CHECK(g_logCount == 1);
+    NX_CHECK(contextCalls == 1);
     NX_CHECK(g_lastLog.level == LogLevel::Warning);
     NX_CHECK(g_lastLog.length == 5);
 
-    NX_CHECK(SetLogSink(previous) == &RecordLog);
+    NX_CHECK(SetLogSink(previous) == &binding);
 }
 
-NX_TEST(LogHook, DropsRecordsWithoutASink) {
+NX_TEST(LogHook, DropsRecordsWithoutABinding) {
     g_logCount = 0;
-    const LogSink previous = SetLogSink(nullptr);
+    const LogSinkBinding* const previous = SetLogSink(nullptr);
     const char text[] = "dropped";
+    NX_CHECK(!IsLogEnabled(LogLevel::Fatal));
     WriteLog(LogRecord{LogLevel::Info, text, 7, NX_SOURCE_LOCATION});
     NX_CHECK(g_logCount == 0);
+    static_cast<void>(SetLogSink(previous));
+}
+
+NX_TEST(LogHook, DropsRecordsBelowTheMinimumLevel) {
+    g_logCount = 0;
+    i32 contextCalls = 0;
+    const LogSinkBinding binding{&RecordLog, &contextCalls};
+    const LogSinkBinding* const previous = SetLogSink(&binding);
+    const LogLevel previousLevel = GetLogMinimumLevel();
+    NX_CHECK(previousLevel == LogLevel::Trace);
+
+    SetLogMinimumLevel(LogLevel::Warning);
+    NX_CHECK(GetLogMinimumLevel() == LogLevel::Warning);
+    NX_CHECK(!IsLogEnabled(LogLevel::Info));
+    NX_CHECK(IsLogEnabled(LogLevel::Warning));
+    NX_CHECK(IsLogEnabled(LogLevel::Fatal));
+
+    const char text[] = "x";
+    WriteLog(LogRecord{LogLevel::Info, text, 1, NX_SOURCE_LOCATION});
+    NX_CHECK(g_logCount == 0);
+    WriteLog(LogRecord{LogLevel::Error, text, 1, NX_SOURCE_LOCATION});
+    NX_CHECK(g_logCount == 1);
+
+    SetLogMinimumLevel(LogLevel::Off);
+    NX_CHECK(!IsLogEnabled(LogLevel::Fatal));
+    WriteLog(LogRecord{LogLevel::Fatal, text, 1, NX_SOURCE_LOCATION});
+    NX_CHECK(g_logCount == 1);
+
+    SetLogMinimumLevel(previousLevel);
     static_cast<void>(SetLogSink(previous));
 }

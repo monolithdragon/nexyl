@@ -1,3 +1,4 @@
+#include <Nexyl/Base/Format.h>
 #include <Nexyl/Base/Types.h>
 #include <Nexyl/Base/Utility.h>
 #include <Nexyl/Containers/Hash.h>
@@ -109,4 +110,18 @@ NX_TEST(String, MovesAndClonesExplicitly) {
         NX_CHECK(HashValue(copy) == HashValue(StringView("moved text")));
     }
     NX_CHECK(allocator.GetStatistics().liveAllocationCount == 0);
+}
+
+NX_TEST(StringView, FormatsAsText) {
+    char buffer[32] = {};
+    const FormatResult result = Format(buffer, "[{:>6}|{:.2}]", StringView("abc"), StringView("xyz"));
+    NX_CHECK(StringView(buffer, result.size) == StringView("[   abc|xy]"));
+}
+
+NX_TEST(String, FormatsAsText) {
+    Memory::GuardAllocator allocator;
+    const String text(allocator, "hello");
+    char buffer[32] = {};
+    const FormatResult result = Format(buffer, "<{:<7}>", text);
+    NX_CHECK(StringView(buffer, result.size) == StringView("<hello  >"));
 }
