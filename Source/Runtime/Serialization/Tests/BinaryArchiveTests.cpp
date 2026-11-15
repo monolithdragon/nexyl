@@ -1,28 +1,18 @@
+#include "MachineFixture.h"
 #include "SerializationTestTypes.h"
+#include "TestRegistry.h"
 
 #include <Nexyl/Base/Assert.h>
 #include <Nexyl/Base/Error.h>
 #include <Nexyl/Base/Result.h>
 #include <Nexyl/Base/Span.h>
 #include <Nexyl/Base/Types.h>
-#include <Nexyl/Base/Utility.h>
 #include <Nexyl/Containers/Array.h>
 #include <Nexyl/Containers/StringView.h>
 #include <Nexyl/Memory/GuardAllocator.h>
-#include <Nexyl/Memory/UniquePtr.h>
-#include <Nexyl/Reflection/FoundationTypes.h>
-#include <Nexyl/Reflection/TypeInfo.h>
-#include <Nexyl/Reflection/TypeRegistry.h>
 #include <Nexyl/Serialization/BinaryArchive.h>
 #include <Nexyl/Serialization/SerializationErrors.h>
 #include <Nexyl/Test/Test.h>
-
-namespace Nexyl::Reflection::Generated {
-
-// Generated from Tests/SerializationTestTypes.h by the build.
-extern const TypeTable kSerializationTestsTypeTable;
-
-} // namespace Nexyl::Reflection::Generated
 
 using namespace Nexyl;
 using namespace Nexyl::Serialization;
@@ -30,68 +20,8 @@ using namespace Nexyl::SerializationTest;
 
 namespace {
 
-class Types final {
-public:
-    explicit Types(Memory::IAllocator& allocator) {
-        Result<Memory::UniquePtr<Reflection::TypeRegistry>, Error> created =
-            Reflection::TypeRegistry::Create(allocator);
-        NX_ASSERT(created.IsOk(), "Registry creation failed in a test.");
-        m_registry = Move(created).TakeValue();
-        const bool attached = m_registry->Attach(Reflection::GetBuiltinTypeTable()).IsOk() &&
-                              m_registry->Attach(Reflection::GetFoundationTypeTables()).IsOk() &&
-                              m_registry->Attach(Reflection::Generated::kSerializationTestsTypeTable).IsOk();
-        NX_ASSERT(attached, "The test tables do not attach.");
-        static_cast<void>(attached);
-    }
-
-    ~Types() {
-        m_registry->Detach(Reflection::Generated::kSerializationTestsTypeTable);
-        for (const Reflection::TypeTable* const table : Reflection::GetFoundationTypeTables()) {
-            m_registry->Detach(*table);
-        }
-        m_registry->Detach(Reflection::GetBuiltinTypeTable());
-    }
-
-    Types(const Types&) = delete;
-    Types& operator=(const Types&) = delete;
-    Types(Types&&) = delete;
-    Types& operator=(Types&&) = delete;
-
-    [[nodiscard]] const Reflection::TypeRegistry& Get() const {
-        return *m_registry;
-    }
-
-private:
-    Memory::UniquePtr<Reflection::TypeRegistry> m_registry;
-};
-
-void Fill(Machine& machine, Memory::IAllocator& allocator) {
-    machine.kind = Kind::Robot;
-    machine.running = true;
-    machine.code = 'z';
-    machine.balance = -1234567890123LL;
-    machine.level = 200;
-    machine.precise = 0.1;
-    machine.placement.position[2] = 1e300;
-    machine.placement.direction = Point{0.0F, 0.0F, 1.0F};
-    machine.grid[1][2] = -7;
-    machine.name = Containers::String(allocator, "Unit 7");
-    machine.route = Containers::Array<Waypoint>(allocator);
-    machine.route.Push(Waypoint{Point{1.0F, 2.0F, 3.0F}, 0.5F});
-    machine.route.Push(Waypoint{Point{4.0F, 5.0F, 6.0F}, 1.5F});
-    machine.labels = Containers::HashMap<u32, Containers::String>(allocator);
-    machine.labels.Set(10, Containers::String(allocator, "ten"));
-    machine.labels.Set(3, Containers::String(allocator, "three"));
-    machine.batches = Containers::Array<Containers::Array<u32>>(allocator);
-    machine.batches.Push(Containers::Array<u32>(allocator, {1, 2, 3}));
-    machine.batches.Push(Containers::Array<u32>(allocator));
-    machine.next = Containers::Handle<Machine>{4, 9};
-    machine.cache = 99;
-    machine.SetTicks(0xFFFF'FFFF'FFFFULL);
-}
-
 template <typename T>
-[[nodiscard]] Containers::Array<u8> Write(const Types& types, const T& object, Memory::IAllocator& allocator) {
+[[nodiscard]] Containers::Array<u8> Write(const TestRegistry& types, const T& object, Memory::IAllocator& allocator) {
     Containers::Array<u8> archive(allocator);
     const Result<void, Error> written = WriteBinary(types.Get(), object, archive);
     NX_ASSERT(written.IsOk(), "WriteBinary failed in a test.");
@@ -107,9 +37,9 @@ template <typename T>
 
 NX_TEST(BinaryArchive, RoundTripsEveryKind) {
     Memory::GuardAllocator allocator;
-    const Types types(allocator);
+    const TestRegistry types(allocator);
     Machine source;
-    Fill(source, allocator);
+    FillMachine(source, allocator);
     const Containers::Array<u8> archive = Write(types, source, allocator);
 
     Machine copy;
@@ -135,9 +65,9 @@ NX_TEST(BinaryArchive, RoundTripsEveryKind) {
 
 NX_TEST(BinaryArchive, IsDeterministic) {
     Memory::GuardAllocator allocator;
-    const Types types(allocator);
+    const TestRegistry types(allocator);
     Machine source;
-    Fill(source, allocator);
+    FillMachine(source, allocator);
     const Containers::Array<u8> first = Write(types, source, allocator);
     const Containers::Array<u8> second = Write(types, source, allocator);
     NX_REQUIRE(first.Size() == second.Size());
@@ -150,7 +80,7 @@ NX_TEST(BinaryArchive, IsDeterministic) {
 
 NX_TEST(BinaryArchive, ReadsAnEarlierVersionOfAType) {
     Memory::GuardAllocator allocator;
-    const Types types(allocator);
+    const TestRegistry types(allocator);
     const OldConveyor old{2.5F, 42, 17, 3};
     const Containers::Array<u8> archive = Write(types, old, allocator);
 
@@ -164,9 +94,9 @@ NX_TEST(BinaryArchive, ReadsAnEarlierVersionOfAType) {
 
 NX_TEST(BinaryArchive, RejectsMalformedArchives) {
     Memory::GuardAllocator allocator;
-    const Types types(allocator);
+    const TestRegistry types(allocator);
     Machine source;
-    Fill(source, allocator);
+    FillMachine(source, allocator);
     Containers::Array<u8> archive = Write(types, source, allocator);
 
     // Every proper prefix is an error, never a crash.
@@ -203,7 +133,7 @@ NX_TEST(BinaryArchive, RejectsMalformedArchives) {
 
 NX_TEST(BinaryArchive, RefusesTypesThatAreNotData) {
     Memory::GuardAllocator allocator;
-    const Types types(allocator);
+    const TestRegistry types(allocator);
     const Error opaque(SerializationError::InvalidValue);
     Containers::Array<u8> archive(allocator);
     NX_CHECK(FailsWith(WriteBinary(types.Get(), opaque, archive), SerializationError::NotSerializable));

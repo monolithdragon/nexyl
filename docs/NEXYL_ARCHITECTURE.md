@@ -225,7 +225,7 @@ Module responsibilities in one line each:
 
 | Module | Responsibility |
 |---|---|
-| `Base` | Compiler and platform detection, primitive type aliases, assert/log/profile hooks, `Result`, `Option`, `Span`, the formatter (`Format`, checked at compile time) and the log functions built on it, the only include site of whitelisted standard headers. Allocates nothing, calls no OS function. |
+| `Base` | Compiler and platform detection, primitive type aliases, assert/log/profile hooks, `Result`, `Option`, `Span`, the formatter (`Format`, checked at compile time) and the log functions built on it, exact number parsing (`ParseF64` and the others), the only include site of whitelisted standard headers. Allocates nothing, calls no OS function. |
 | `Platform` | Hardware abstraction: virtual memory, threads, synchronisation, files, time, dynamic libraries, sockets, windows, raw input. Its API never allocates; callers supply buffers. Windows, raw input and sockets are added with the modules that use them (`Renderer`/`Input`, `Net`), so that their API follows real needs. |
 | `Memory` | Allocators, tags, budgets, tracking, `UniquePtr`. |
 | `Math` | Deterministic scalar, vector, matrix and quaternion math, transcendental functions, SIMD abstraction. |
@@ -798,6 +798,7 @@ Metadata that cannot be derived from the type lives in the `///` comment that pu
 | `@hidden` | Field, method, type | Not shown in the editor and not exposed to scripts. |
 | `@category <name>` | Field, type | Grouping in editor panels. |
 | `@renamed-from <old>` | Field, type, enum value | Old name accepted when loading; keeps saved data and `TypeId` references valid. |
+| `@version <n>` | Type | Schema version, from 1 (the default). Archives store it; upgrade functions will key on it. |
 | `@noscript` | Method, type | Not exposed to scripts. |
 | `@opaque` | Class | Reflected by identity only: name, `TypeId`, size and alignment, no fields. For system objects that are not data. |
 
@@ -840,7 +841,8 @@ Design targets, to be validated when the tool exists: an unchanged module adds o
 `<Module>.reflect.gen.cpp` is compiled into the module that owns the types (or into `Reflection` for layer 0–3 types, listed by `GetFoundationTypeTables()`). It defines the constant `TypeTable` `Nexyl::Reflection::Generated::k<Module>TypeTable` and contains:
 
 - Constant type, field, method and enum tables with static storage and constant initialisation.
-- Access shims for private members. They use explicit template instantiation, which the language exempts from access checking, so no `friend` declaration and no change to the user's class is required.
+- Access shims for private members. They use explicit template instantiation, which the language exempts from access checking, so no `friend` declaration and no change to the user's class is required. Today they back a layout check per record with private fields (`TypeInfo::checkLayout`): the compiler cannot `static_assert` a private offset, so tests compare the tool's offsets with the members' addresses on a default-constructed object.
+- Headers in a module's `Tests/` directory get a table of their own, compiled into the test executable (`k<Module>TestsTypeTable`), so tests can reflect fixtures; only modules that use `Reflection` have one.
 - `static_assert` checks of size, alignment and `TypeId` for every type, so the real compiler, not libclang, is the authority on layout and identity.
 - Generated fast paths per type: binary serialize and deserialize, state hash, and script call thunks.
 - One explicit function that hands the module's tables to the registry. It is called from module initialisation; no static constructor is involved, so static linking cannot drop it.
@@ -883,9 +885,9 @@ Types whose dynamic type matters derive from `Nexyl::Object`, which carries one 
 
 | Aspect | Design |
 |---|---|
-| Binary archive | Cooked, little-endian, memory-mappable where the layout allows. Carries a schema hash per type; a mismatch selects the tolerant path. |
-| Text archive | Human-readable and diff-friendly, for source assets and version control. Fields by name, enums by name. |
-| Versioning | Each type has a schema version. Loading tolerates added and removed fields, accepts `@renamed-from`, and runs registered upgrade functions for semantic changes. |
+| Binary archive | Little-endian (`WriteBinary`, `ReadBinary`). A schema section names every type the value uses, with kind, size, version, schema hash, and field names and types; the value follows. Reading is driven by the stored schema: fields are matched by name or `@renamed-from` once per type (directly when the schema hash is equal), values of removed or retyped fields are skipped, new fields keep their value. Memory-mappable cooked layouts come with the asset pipeline. |
+| Text archive | JSON (RFC 8259) with a fixed layout, one field per line in declaration order (`WriteText`, `ReadText`): keys `nexyl`, `type`, `versions`, `value`. Fields by name, enums by name, integers exact, floating point as the shortest round-trip text (`nan` and `inf` as strings), `HashMap` as `[key, value]` pairs. A value that does not fit its field leaves the field unchanged (D-44). |
+| Versioning | Each type has a schema version (`@version`, default 1), stored in both archives. Loading tolerates added and removed fields and accepts `@renamed-from` for types, fields and enum values. Upgrade functions for semantic changes are designed with the first such change; until then a version difference only selects name matching. |
 | References | Assets by `AssetRef<T>` (stable asset ID). Entities by entity reference, remapped on load. Raw pointers are not serializable. |
 | Robustness | All readers validate sizes and counts and return `Error` on malformed input. Archive readers are fuzz-tested. |
 
@@ -1059,7 +1061,7 @@ The game engine is the first shippable milestone. Each phase ends with a verifia
 |---|---|---|
 | 0 — Scaffolding | Repository layout, CMake module system with layer and kind checks, CI gates (include scanner, standard-header scanner, formatting, static analysis), compiler-conformance test | An empty module passes every gate on Windows, Linux and macOS |
 | 1 — Foundation | In this order: `Base` core types; the `Platform` subset `Test` needs (console output, monotonic time); `Test`; the rest of `Platform` (desktop); `Memory`; `Containers`. `Math` and the determinism lint in parallel after `Base` | Unit tests pass; `Math` reproduces reference vectors on all desktop toolchains |
-| 2 — Services | `Jobs`, `Log`, `Profile`, `Reflection` with NHT, `Serialization`, `VFS`, `PluginHost`; the fuzz-test suite, first for archive readers and `Containers` | A sample module is reflected, serialized, and hot-reloaded; static and dynamic loading both pass; fuzz tests pass |
+| 2 — Services | `Jobs`, `Log`, `Profile`, `Reflection` with NHT, `Serialization`, `VFS`, `PluginHost`; the fuzz-test suite, first for archive readers and `Containers` (deterministic harness `Test::Fuzz`, D-45) | A sample module is reflected, serialized, and hot-reloaded; static and dynamic loading both pass; fuzz tests pass |
 | 3 — Rendering | `RHI.Api`, `RHI.Vulkan`, `RHI.DX12`, `ShaderCompiler`, `Shader`, `Renderer` (minimum) | A lit scene renders through the bindless path on Vulkan and DX12 from the same NXSL source |
 | 4 — World | `ECS`, `Assets`, `Scene`, `Physics.Api`, `Physics.Nexyl` (rigid bodies), `Audio.Api`, `Audio.Nexyl` (minimum), `Input` | A physics scene passes the determinism matrix on desktop |
 | 5 — Tooling | `UI`, `Editor` (minimum), `AssetPipeline`, native gameplay modules with hot reload, then C#, Lua, visual scripting | A small game is built end to end in the editor |
@@ -1118,3 +1120,7 @@ The game engine is the first shippable milestone. Each phase ends with a verifia
 | D-41 | The header tool uses the C API of libclang, pinned to `REQUIRED_LLVM_MAJOR`, and runs in the build for every module with `REFLECT Public`; libclang is a build requirement | A stable ABI and one library; one LLVM version for formatting, analysis and reflection keeps generated tables identical on every machine; build-time generation as section 8.6 plans, with a prebuilt host tool for cross builds later | The Clang C++ API (changes every release); generated files committed to the repository (contradicts build-time generation and hot reload) |
 | D-42 | `@opaque` marks a class reflected by identity only; a field of a type reflection cannot store is a build error unless `@transient`; `String`, `Array`, `HashMap`, `Handle`, built-in arrays and fundamental types are built-in kinds described by templates in `Reflection` | System objects (allocators, files, locks) are not data, and tagging every pointer member `@transient` would only add noise; containers need container semantics, not their private members | Reflecting every class field by field; hand-written descriptions of the containers |
 | D-43 | `TypeId` hashes a canonical name: integers by size and signedness, template instantiations as the template's name continued over the identities of their arguments | Compilers spell fundamental types and template arguments differently; the canonical form gives one identity, which generated `static_assert`s confirm on every compiler | Hashing the compiler's spelling (differs between MSVC, Clang and GCC); hashing the mangled name (differs between ABIs) |
+| D-44 | The text archive is a strict subset of JSON with a fixed layout | Every editor, diff tool and script reads it; the parser is small and fuzzable; one field per line in declaration order keeps diffs small | An own text format (comments, fewer quotes, but own tools) |
+| D-45 | Fuzz tests are deterministic mutation runs inside the unit tests (`Test::Fuzz`, seeded SplitMix64), also run under the address sanitizer in CI | Reproducible on every platform with no new compiler flags or third-party code; coverage-guided fuzzing (libFuzzer) can be added later as a separate preset | libFuzzer now (compiler flags, Clang only); a hosted continuous-fuzzing service now |
+| D-46 | Binary archives carry the schema of every type they use and are read under its guidance; records with base classes and opaque types are not serialized yet | Old data stays readable after fields are added, removed, renamed or retyped, without upgrade code for these common cases; a stored type that no longer exists is skipped safely | A schema hash only (unreadable after any change); offsets and layouts in the file (break with the compiler) |
+| D-47 | Decimal text is parsed exactly in `Base`: an estimate corrected by big-integer comparisons with the midpoints between neighbouring values; at most 800 significant digits are kept, plus a sticky digit | The counterpart of D-38: text written by `Format` reads back to the same bits on every platform; fingerprints against the Python standard library guard it | `strtod` (C runtime, differs between platforms); Eisel-Lemire with a fallback (more code, faster) |

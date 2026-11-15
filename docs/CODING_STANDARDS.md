@@ -531,7 +531,7 @@ The output of clang-format and the findings of clang-tidy differ between version
 | TEST-2 | Each module has unit tests under `Tests/`. New public API comes with tests. | Review |
 | TEST-3 | A bug fix includes a test that fails without the fix. | Review |
 | TEST-4 | Tests are deterministic: fixed seeds, no dependence on execution order, timing or the network. | Review |
-| TEST-5 | Parsers and archive readers have fuzz tests. | Review |
+| TEST-5 | Parsers and archive readers have fuzz tests, written with `Test::Fuzz` (`<Nexyl/Test/Fuzz.h>`): a fixed seed, a corpus of valid inputs, and a target that must return an error or a value for any input. | Review |
 | TEST-6 | Containers and allocators are tested under the guard allocator and the sanitizers. | CI |
 | TEST-7 | Performance-critical code has a benchmark tracked in CI. | Review |
 
@@ -596,7 +596,7 @@ python Scripts/ci/run_workflow.py <preset>
 | Reflection constraints and schema diff | REFL-2 to REFL-6, API-4 | Planned: phase 2, with the header tool |
 | Documentation completeness | DOC-1 to DOC-6 | Planned: phase 2, with the header tool |
 | ABI layout baseline and conformance tests | API-5 | Planned: phase 2 |
-| Fuzz, soak and performance suites | TEST-5, TEST-7 | Planned; scheduled runs, regressions open blocking issues |
+| Fuzz, soak and performance suites | TEST-5, TEST-7 | Fuzz: active as deterministic unit tests (`Containers`, `Serialization`), also under the address sanitizer. Long scheduled fuzz runs, soak and performance: planned |
 
 A rule marked CI in this document whose gate is still planned is enforced by review until that gate exists.
 
