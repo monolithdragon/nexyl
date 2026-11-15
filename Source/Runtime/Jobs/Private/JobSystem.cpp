@@ -1,6 +1,8 @@
 #include <Nexyl/Jobs/JobSystem.h>
 
 #include <Nexyl/Base/Construct.h>
+#include <Nexyl/Base/Format.h>
+#include <Nexyl/Base/Profile.h>
 #include <Nexyl/Base/Utility.h>
 #include <Nexyl/Memory/MemoryOperations.h>
 #include <Nexyl/Platform/SystemInfo.h>
@@ -280,6 +282,10 @@ void JobSystem::WorkerMain(void* argument) {
 
 void JobSystem::RunWorker(u32 worker) {
     g_currentWorker = WorkerIdentity{this, worker};
+    char name[32] = {};
+    // The last byte stays zero: the name is NUL-terminated.
+    static_cast<void>(Format(Span<char>(name, sizeof(name) - 1), "Job {}", worker));
+    ProfileThreadName(name);
     u32 idleRounds = 0;
     for (;;) {
         u32 index = 0;
@@ -385,7 +391,10 @@ bool JobSystem::TryTake(u32 worker, u32& index) {
 void JobSystem::Execute(u32 index) {
     Detail::JobSlot& slot = m_slots[index];
     const JobContext context{this, JobHandle{index, slot.generation.Load(MemoryOrder::Relaxed)}};
-    slot.function(context, slot.payload);
+    {
+        const ProfileScope scope("Job");
+        slot.function(context, slot.payload);
+    }
     m_executed.FetchAdd(1, MemoryOrder::Relaxed);
     Finish(index);
 }
