@@ -55,6 +55,26 @@ function(nexyl_find_libclang)
             "(REQUIRED_LLVM_MAJOR). Set NEXYL_LLVM_ROOT to an LLVM ${major} installation.")
     endif()
 
+    # libclang finds its built-in headers (stddef.h, arm_neon.h) and the system headers the way the clang driver
+    # does, which can fail when it is loaded from an unusual place. The header tool passes both explicitly.
+    execute_process(COMMAND "${NEXYL_LIBCLANG_CLANG}" -print-resource-dir
+        OUTPUT_VARIABLE resource_directory OUTPUT_STRIP_TRAILING_WHITESPACE RESULT_VARIABLE result)
+    if(NOT result EQUAL 0 OR NOT IS_DIRECTORY "${resource_directory}")
+        message(FATAL_ERROR "Cannot find the resource directory of ${NEXYL_LIBCLANG_CLANG}.")
+    endif()
+    file(TO_CMAKE_PATH "${resource_directory}" resource_directory)
+    set(parse_arguments "-resource-dir=${resource_directory}")
+    if(APPLE)
+        set(sysroot "${CMAKE_OSX_SYSROOT}")
+        if(NOT sysroot)
+            execute_process(COMMAND xcrun --show-sdk-path OUTPUT_VARIABLE sysroot OUTPUT_STRIP_TRAILING_WHITESPACE)
+        endif()
+        if(sysroot)
+            list(APPEND parse_arguments "-isysroot" "${sysroot}")
+        endif()
+    endif()
+    set(NEXYL_LIBCLANG_PARSE_ARGUMENTS "${parse_arguments}" CACHE INTERNAL "Arguments the header tool passes to libclang.")
+
     add_library(ThirdParty.LibClang SHARED IMPORTED GLOBAL)
     set_target_properties(ThirdParty.LibClang PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${NEXYL_LIBCLANG_INCLUDE_DIR}")
     if(WIN32)

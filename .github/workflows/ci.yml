@@ -86,8 +86,13 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           choco install ninja --no-progress -y
-          # libclang for the header tool. The image may carry another LLVM; install the pinned one over it.
-          choco install llvm --version=23.1.5 --allow-downgrade --no-progress -y
+          # libclang for the header tool: the official LLVM release, installed over any LLVM the image carries.
+          $release = "23.1.5"
+          $installer = "$env:RUNNER_TEMP\LLVM-$release-win64.msi"
+          Invoke-WebRequest "https://github.com/llvm/llvm-project/releases/download/llvmorg-$release/LLVM-$release-win64.msi" -OutFile $installer
+          $process = Start-Process -FilePath msiexec.exe -ArgumentList "/i", "`"$installer`"", "/qn", "/norestart" -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "The LLVM installer failed with exit code $($process.ExitCode)." }
+          & "$env:ProgramFiles\LLVM\bin\clang.exe" --version
 
       - name: Show tool versions
         shell: bash

@@ -543,7 +543,7 @@ function(_nexyl_add_reflection_tables)
 
     # Every module's export macro is empty while the tool parses, and the directory definitions apply as in the
     # build. The configuration decides NDEBUG, which can change layouts.
-    set(common "-xc++" "-std=c++23")
+    set(common "-xc++" "-std=c++23" ${NEXYL_LIBCLANG_PARSE_ARGUMENTS})
     foreach(name IN LISTS names)
         _nexyl_api_macro("${name}" macro)
         list(APPEND common "-D${macro}=")
