@@ -1,5 +1,6 @@
 #include <Nexyl/Base/Assert.h>
 #include <Nexyl/Base/LogHook.h>
+#include <Nexyl/Base/ProfileHook.h>
 #include <Nexyl/Base/Std/Atomic.h>
 
 #if NX_COMPILER_MSVC
@@ -19,6 +20,7 @@ constinit std::atomic<LogLevel> g_logMinimumLevel{LogLevel::Trace};
 // so the replaced binding is no longer in use when it returns. Sequentially consistent on both sides: a writer
 // either increments before the exchange (and is waited for) or loads the new binding.
 constinit std::atomic<u64> g_logWritesInFlight{0};
+constinit std::atomic<const ProfileSinkBinding*> g_profileSink{nullptr};
 
 // Ends the process without calling into the operating system or the C runtime.
 [[noreturn]] void Terminate() {
@@ -74,6 +76,20 @@ void WriteLog(const LogRecord& record) {
         binding->write(binding->context, record);
     }
     g_logWritesInFlight.fetch_sub(1, std::memory_order_seq_cst);
+}
+
+const ProfileSinkBinding* SetProfileSink(const ProfileSinkBinding* binding) {
+    NX_ASSERT(binding == nullptr || binding->write != nullptr, "A profile sink binding needs a write function.");
+    return g_profileSink.exchange(binding, std::memory_order_acq_rel);
+}
+
+bool WriteProfileEvent(const ProfileEvent& event) {
+    const ProfileSinkBinding* const binding = g_profileSink.load(std::memory_order_acquire);
+    if (binding == nullptr) {
+        return false;
+    }
+    binding->write(binding->context, event);
+    return true;
 }
 
 namespace Detail {

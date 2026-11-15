@@ -3,6 +3,7 @@
 #include <Nexyl/Base/Assert.h>
 #include <Nexyl/Base/Construct.h>
 #include <Nexyl/Base/Log.h>
+#include <Nexyl/Base/Profile.h>
 #include <Nexyl/Memory/MemoryErrors.h>
 #include <Nexyl/Memory/MemoryOperations.h>
 #include <Nexyl/Platform/Time.h>
@@ -225,6 +226,7 @@ void Logger::ThreadMain(void* argument) {
 }
 
 void Logger::Run() {
+    ProfileThreadName("Log");
     m_sinkThreadId.Store(Platform::Thread::GetCurrentId(), MemoryOrder::Relaxed);
     m_queueMutex.Lock();
     for (;;) {

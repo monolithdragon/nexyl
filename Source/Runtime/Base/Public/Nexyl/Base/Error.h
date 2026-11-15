@@ -29,6 +29,8 @@ enum class ModuleId : u16 {
     Log = 5,
     /// The Jobs module.
     Jobs = 6,
+    /// The Profile module.
+    Profile = 7,
 };
 
 /// Satisfied by an enumeration that holds one module's error codes (rule ERR, section 5.2).
