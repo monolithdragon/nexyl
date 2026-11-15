@@ -231,6 +231,7 @@ Module responsibilities in one line each:
 | `Math` | Deterministic scalar, vector, matrix and quaternion math, transcendental functions, SIMD abstraction. |
 | `Test` | The engine's unit-test framework: test registration, checks, runner. Uses fixed-size static storage instead of `Memory` and `Containers`, so that every module, including those two, is tested with it. |
 | `Containers` | `Array`, `HashMap`, `HashSet`, `String`, `StringView`, handles, handle pools, sorting and search. |
+| `Log` | Back end of the `Base` log functions: `Logger` with a bounded background queue, sinks (console, file), timestamps, statistics. Never blocks the writer. |
 | `Jobs` | Work-stealing job scheduler, deterministic parallel-for, job handles. |
 | `Reflection` | Runtime type registry and type-info model; also hosts the generated tables for layer 0–3 types. |
 | `Serialization` | Reflection-driven binary and text archives, schema versioning, migration. |
