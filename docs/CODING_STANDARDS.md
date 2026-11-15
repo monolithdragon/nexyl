@@ -343,6 +343,7 @@ enum class BodyType : u8 { Static, Kinematic, Dynamic };
 | CLS-12 | Macros are a last resort: assertions, error propagation, export, platform detection, scope exit. A macro never replaces a function, constant or template. | Review |
 | CLS-13 | Code is `const`-correct. | Review |
 | CLS-14 | Public versus private data is a deliberate choice, because reflection gives it meaning (section 15). | Review |
+| TOOL-1 | A `Tool` or `App` module does not write `main`. It defines `int Nexyl::ProgramMain(int argumentCount, const char* const* arguments)`; the build generates `main`, which calls it, as it does for test executables. The arguments are read-only. | CI |
 
 ---
 

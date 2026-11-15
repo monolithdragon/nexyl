@@ -156,9 +156,16 @@ int Aggregate(const Options& options) {
 
 } // namespace
 
-int main(int argc, char** argv) {
+namespace Nexyl {
+
+int ProgramMain(int argumentCount, const char* const* arguments);
+
+} // namespace Nexyl
+
+// The build generates main(), which calls this (rule TOOL-1).
+int Nexyl::ProgramMain(int argumentCount, const char* const* arguments) {
     Options options;
-    if (!ParseOptions(argc, argv, options)) {
+    if (!ParseOptions(argumentCount, arguments, options)) {
         static_cast<void>(std::fprintf(stderr,
                                        "usage: Tools.NHT generate --module <Name> --output <file> --arguments <file> "
                                        "[--depfile <file>] --header <path>...\n"

@@ -291,6 +291,19 @@ class SourceRuleTests(GateTestCase):
         )
         self.assertEqual(self.repository.source_rules(), ["DOC-10", "DOC-10"])
 
+    def test_main_is_generated(self) -> None:
+        self.repository.add_module(
+            "Tools.Cook",
+            "Tool",
+            16,
+            group="Tools",
+            files={
+                "Private/A.cpp": "int main(int argc, char** argv) { return 0; }\n",
+                "Private/B.cpp": "int Nexyl::ProgramMain(int count, const char* const* values) { return 0; }\n",
+            },
+        )
+        self.assertEqual(self.repository.source_rules(), ["TOOL-1"])
+
     def test_deviation_marker_suppresses_its_rule_only(self) -> None:
         self.repository.add_module(
             "Scene",

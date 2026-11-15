@@ -12,6 +12,7 @@ Implemented rules:
   PLAT-1  platform, compiler and architecture are detected only through the NX_ macros
   PLAT-2  conditional compilation on those macros only in platform-facing modules
   DOC-10  pending work is marked TODO(<issue-id>): <text>
+  TOOL-1  no hand-written main(); Tool and App modules define Nexyl::ProgramMain
   FMT-2   source files are UTF-8
   DEV-1   deviation markers are well formed: // NX-DEVIATION(<rule-id>): <justification>
 
@@ -381,6 +382,16 @@ def _check_work_markers(source: SourceFile, violations: list[Violation]) -> None
             source.flag(violations, number, "DOC-10", "Pending work is marked 'TODO(<issue-id>): <text>'.")
 
 
+_MAIN = re.compile(r"\bint\s+main\s*\(")
+
+
+def _check_main(source: SourceFile, violations: list[Violation]) -> None:
+    """TOOL-1: the build generates main(); hand-written code defines Nexyl::ProgramMain."""
+    for number, line in enumerate(source.code_lines, start=1):
+        if _MAIN.search(line):
+            source.flag(violations, number, "TOOL-1", "Do not write main(). Define Nexyl::ProgramMain instead.")
+
+
 def _read_deviations(source: SourceFile, violations: list[Violation]) -> None:
     for number, line in enumerate(source.raw_lines, start=1):
         if not _DEVIATION.search(line):
@@ -451,6 +462,7 @@ def scan_modules(modules: dict[str, Module], repo: Path) -> tuple[list[Violation
             _check_platform_conditionals(source, violations)
             _check_allocation(source, violations)
             _check_work_markers(source, violations)
+            _check_main(source, violations)
             _check_determinism(source, violations)
 
     return violations, file_count
