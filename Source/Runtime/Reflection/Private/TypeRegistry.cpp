@@ -128,6 +128,16 @@ const TypeInfo* TypeRegistry::FindByName(Containers::StringView name) const {
     return id != nullptr ? Find(*id) : nullptr;
 }
 
+const TypeInfo* TypeRegistry::FindRenamed(Containers::StringView previousName) const {
+    for (const auto entry : m_types) {
+        const TypeInfo* const type = entry.value.providers[0];
+        if (Containers::StringView::FromCString(type->renamedFrom) == previousName && !previousName.IsEmpty()) {
+            return type;
+        }
+    }
+    return nullptr;
+}
+
 usize TypeRegistry::GetTypeCount() const {
     return m_types.Size();
 }

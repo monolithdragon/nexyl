@@ -101,6 +101,14 @@ public:
     /// @since 0.1
     [[nodiscard]] NX_REFLECTION_API const TypeInfo* FindByName(Containers::StringView name) const;
 
+    /// Finds the type that was renamed from a name, by its `@renamed-from` tag. Slower than FindByName: it looks
+    /// at every type. Readers of archives call it for a stored type that no longer exists under its name.
+    /// @param previousName The earlier name, for example `Nexyl::Game::Conveyer`.
+    /// @return The description, or nullptr if no attached type was renamed from that name.
+    /// @threadsafety compatible
+    /// @since 0.1
+    [[nodiscard]] NX_REFLECTION_API const TypeInfo* FindRenamed(Containers::StringView previousName) const;
+
     /// Finds the description of `T`.
     /// @return The description, or nullptr if no attached table has it.
     /// @threadsafety compatible

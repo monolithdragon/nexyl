@@ -141,4 +141,22 @@ private:
     usize m_size = 0;
 };
 
+/// Views bytes as UTF-8 text. Byte and character types may alias every object, so this is a pure view.
+/// @param bytes The bytes. The view refers to the same memory.
+/// @return The same memory as characters.
+/// @threadsafety safe
+/// @since 0.1
+[[nodiscard]] inline Span<const char> AsCharacters(Span<const u8> bytes) noexcept {
+    return Span<const char>(reinterpret_cast<const char*>(bytes.Data()), bytes.Size());
+}
+
+/// Views text as bytes. Byte and character types may alias every object, so this is a pure view.
+/// @param text The text. The view refers to the same memory.
+/// @return The same memory as bytes.
+/// @threadsafety safe
+/// @since 0.1
+[[nodiscard]] inline Span<const u8> AsBytes(Span<const char> text) noexcept {
+    return Span<const u8>(reinterpret_cast<const u8*>(text.Data()), text.Size());
+}
+
 } // namespace Nexyl

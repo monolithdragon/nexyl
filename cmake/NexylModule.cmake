@@ -319,6 +319,8 @@ function(nexyl_add_module)
     endforeach()
 
     set_property(GLOBAL PROPERTY "NEXYL_MODULE_${name}_PUBLIC_HEADERS" "${public_headers}")
+    file(GLOB test_headers CONFIGURE_DEPENDS LIST_DIRECTORIES false "${directory}/Tests/*.h")
+    set_property(GLOBAL PROPERTY "NEXYL_MODULE_${name}_TEST_HEADERS" "${test_headers}")
     nexyl_register_module(
         NAME "${name}" KIND "${arg_KIND}" LAYER "${arg_LAYER}" DIRECTORY "${directory}"
         REFLECT "${arg_REFLECT}" SIM_SAFE "${arg_SIM_SAFE}" HAS_SOURCES "${has_sources}"
@@ -515,6 +517,37 @@ function(_nexyl_module_closure name out)
     set(${out} "${result}" PARENT_SCOPE)
 endfunction()
 
+# Adds the command that generates one reflection table and compiles it into `owner`.
+function(_nexyl_add_reflection_table table_name owner closure common headers output_directory)
+    set(arguments ${common})
+    foreach(module IN LISTS closure)
+        _nexyl_module_get("${module}" DIRECTORY module_directory)
+        list(APPEND arguments "-I${module_directory}/Public")
+    endforeach()
+    string(JOIN "\n" argument_text ${arguments})
+    set(argument_file "${output_directory}/${table_name}.nht.rsp")
+    file(GENERATE OUTPUT "${argument_file}" CONTENT "${argument_text}\n")
+
+    set(header_arguments "")
+    foreach(header IN LISTS headers)
+        list(APPEND header_arguments --header "${header}")
+    endforeach()
+
+    set(table "${output_directory}/${table_name}.reflect.gen.cpp")
+    add_custom_command(
+        OUTPUT "${table}"
+        COMMAND Nexyl.Tools.NHT generate --module "${table_name}" --output "${table}" --depfile "${table}.d"
+                --arguments "${argument_file}" ${header_arguments}
+        DEPENDS Nexyl.Tools.NHT ${headers} "${argument_file}"
+        DEPFILE "${table}.d"
+        COMMENT "Generating the reflection table of ${table_name}"
+        VERBATIM)
+    add_custom_target("Nexyl.${table_name}.ReflectionTable" DEPENDS "${table}")
+    set_target_properties("Nexyl.${table_name}.ReflectionTable" PROPERTIES FOLDER "Generated")
+    target_sources(${owner} PRIVATE "${table}")
+    add_dependencies(${owner} "Nexyl.${table_name}.ReflectionTable")
+endfunction()
+
 # Runs the header tool for every module with REFLECT Public. A module below Reflection's layer cannot depend on
 # Reflection, so its table is compiled into Reflection; any other reflected module compiles its own table and
 # must depend on Reflection.
@@ -568,35 +601,25 @@ function(_nexyl_add_reflection_tables)
             set(owner "Nexyl.${name}")
         endif()
 
-        set(arguments ${common})
         _nexyl_module_closure("${name}" closure)
-        foreach(module IN LISTS closure)
-            _nexyl_module_get("${module}" DIRECTORY module_directory)
-            list(APPEND arguments "-I${module_directory}/Public")
-        endforeach()
-        string(JOIN "\n" argument_text ${arguments})
-        set(argument_file "${output_directory}/${name}.nht.rsp")
-        file(GENERATE OUTPUT "${argument_file}" CONTENT "${argument_text}\n")
-
         get_property(headers GLOBAL PROPERTY "NEXYL_MODULE_${name}_PUBLIC_HEADERS")
-        set(header_arguments "")
-        foreach(header IN LISTS headers)
-            list(APPEND header_arguments --header "${header}")
-        endforeach()
+        _nexyl_add_reflection_table("${name}" ${owner} "${closure}" "${common}" "${headers}" "${output_directory}")
+    endforeach()
 
-        set(table "${output_directory}/${name}.reflect.gen.cpp")
-        add_custom_command(
-            OUTPUT "${table}"
-            COMMAND Nexyl.Tools.NHT generate --module "${name}" --output "${table}" --depfile "${table}.d"
-                    --arguments "${argument_file}" ${header_arguments}
-            DEPENDS Nexyl.Tools.NHT ${headers} "${argument_file}"
-            DEPFILE "${table}.d"
-            COMMENT "Generating the reflection table of ${name}"
-            VERBATIM)
-        add_custom_target("Nexyl.${name}.ReflectionTable" DEPENDS "${table}")
-        set_target_properties("Nexyl.${name}.ReflectionTable" PROPERTIES FOLDER "Generated")
-        target_sources(${owner} PRIVATE "${table}")
-        add_dependencies(${owner} "Nexyl.${name}.ReflectionTable")
+    # Headers in a module's Tests/ directory declare reflected test fixtures: their table is compiled into the
+    # module's test executable as Nexyl::Reflection::Generated::k<Module>TestsTypeTable. Only modules that are
+    # Reflection or use it can compile such a table.
+    foreach(name IN LISTS names)
+        get_property(test_headers GLOBAL PROPERTY "NEXYL_MODULE_${name}_TEST_HEADERS")
+        if(NOT test_headers OR NOT TARGET "Nexyl.${name}.Tests")
+            continue()
+        endif()
+        _nexyl_module_closure("${name}" closure)
+        if(NOT name STREQUAL "Reflection" AND NOT "Reflection" IN_LIST closure)
+            continue()
+        endif()
+        _nexyl_add_reflection_table("${name}.Tests" "Nexyl.${name}.Tests" "${closure}" "${common}" "${test_headers}"
+                                    "${output_directory}")
     endforeach()
 
     set(aggregate "${output_directory}/FoundationTypeTables.gen.cpp")

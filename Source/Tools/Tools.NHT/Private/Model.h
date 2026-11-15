@@ -25,10 +25,13 @@ struct Tags {
     double rangeMinimum = 0.0;
     double rangeMaximum = 0.0;
     double step = 0.0;
+    std::uint32_t version = 1;
 };
 
 struct FieldModel {
     std::string name;
+    // The canonical C++ spelling of the field's type, for pointers to private members.
+    std::string typeSpelling;
     std::uint64_t typeId = 0;
     std::uint64_t offset = 0;
     bool isPublic = false;
