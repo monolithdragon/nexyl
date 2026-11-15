@@ -583,14 +583,15 @@ python Scripts/ci/run_workflow.py <preset>
 | Module graph validation (configure step) | Architecture rules R1–R7 | Active |
 | `gate.module_table` | The module table in the architecture document matches the manifests and obeys R1, R2, R4–R6 | Active |
 | `gate.manifests` | CFG-5, HDR-11 | Active |
-| `gate.sources` | HDR-1, HDR-3, HDR-4, HDR-10, STL-1 to STL-3, OWN-1, PLAT-1, PLAT-2, DOC-10, FMT-2 (encoding), DEV-1 | Active |
+| `gate.sources` | HDR-1, HDR-3, HDR-4, HDR-10, STL-1 to STL-3, OWN-1, PLAT-1, PLAT-2, DOC-10, FMT-2 (encoding), DEV-1; in `SIM_SAFE` modules the lexical determinism lint: DET-1, DET-2, DET-3, and the `long` and `wchar_t` of DET-12 | Active |
 | `gate.headers` | HDR-2 | Active |
 | `gate.format` | FMT-1 | Active; needs clang-format |
 | `gate.tidy` | Static-analysis profile (section 22), naming (section 7) | Active; needs clang-tidy |
 | `selftest.module_rules`, `selftest.ci_scripts` | The graph rules and the gate scripts reject deliberately invalid input | Active |
 | Unit tests (`unit.<Module>`) | TEST-2 | Active |
 | Address and undefined-behaviour sanitizer run | CFG-4 | Active as preset `linux-x64-asan`; thread sanitizer arrives with `Jobs` |
-| Determinism lint and matrix | DET-1 to DET-14 | Planned: lint with `Math` (phase 1), matrix with physics (phase 4) |
+| Determinism lint, remaining rules | DET-4 to DET-6, DET-9, DET-10, DET-13; the `char`, raw pointers and bit-fields of DET-12 | Planned: they need type information or the modules they concern |
+| Determinism matrix | The hash chains of the architecture document, section 7.9 | Planned: with physics (phase 4) |
 | Reflection constraints and schema diff | REFL-2 to REFL-6, API-4 | Planned: phase 2, with the header tool |
 | Documentation completeness | DOC-1 to DOC-6 | Planned: phase 2, with the header tool |
 | ABI layout baseline and conformance tests | API-5 | Planned: phase 2 |
@@ -616,7 +617,7 @@ Every approved third-party dependency is listed here (rule TP-2). The version is
 
 | Name | Version | Licence | Purpose | Owner | Used by | Status |
 |---|---|---|---|---|---|---|
-| mpmath | Pinned on introduction | BSD-3-Clause | Computes the high-precision reference values for the `Math` tests (D-27) | `Math` | An offline generator script; its output is committed. Not needed by the runtime, the build or CI. | Approved 2026-11-14, not yet introduced |
+| mpmath | 1.4.1, pinned in `Scripts/math/requirements.txt` | BSD-3-Clause | Computes the high-precision reference values for the `Math` tests and the constant tables of `Math` (D-27) | `Math` | The offline generator `Scripts/math/generate_math_tables.py`; its output (`*.gen.cpp`) is committed. Not needed by the runtime, the build or CI. | Approved 2026-11-14, introduced 2026-11-15 |
 
 ---
 

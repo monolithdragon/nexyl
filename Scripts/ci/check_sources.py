@@ -15,6 +15,15 @@ Implemented rules:
   FMT-2   source files are UTF-8
   DEV-1   deviation markers are well formed: // NX-DEVIATION(<rule-id>): <justification>
 
+In modules marked SIM_SAFE, the determinism lint (docs/CODING_STANDARDS.md, section 13) also checks Public/ and
+Private/ for:
+  DET-1   no platform math functions: sin, sqrtf, __builtin_exp and their relatives
+  DET-2   no floating-point pragmas and no optimize attributes
+  DET-3   no raw SIMD intrinsics or vector types
+  DET-12  no long and no wchar_t
+It is lexical: it sees names, not types. DET-5 (argument evaluation order) and the use of char in simulation state
+are left to review.
+
 A well-formed deviation marker on the same line or on the line above suppresses that rule there.
 """
 
@@ -92,6 +101,24 @@ _WORK_MARKER = re.compile(r"\b(TODO|FIXME|XXX|HACK)\b")
 _TODO_FORM = re.compile(r"TODO\([^()\s]+\): \S")
 _DEVIATION = re.compile(r"NX-DEVIATION")
 _DEVIATION_FORM = re.compile(r"NX-DEVIATION\(([A-Z]+-\d+)\):\s+\S")
+
+# Determinism lint. A platform math call is a lower-case C name followed by '(', not reached through '.', '->' or
+# '::', so engine functions (Sin, Floor) and members do not match.
+_PLATFORM_MATH = re.compile(
+    r"(?<![\w.:>])(?:__builtin_)?(?:a?(?:sin|cos|tan)h?|atan2|exp|exp2|expm1|log|log2|log10|log1p|pow|sqrt|cbrt|hypot"
+    r"|fmod|remainder|floor|ceil|round|trunc|rint|nearbyint|l?lround|fabs|fma|fmin|fmax|frexp|ldexp|modf)[fl]?\s*\("
+)
+_FLOAT_PRAGMA = re.compile(
+    r"^\s*#\s*pragma\s+(?:STDC\s+(?:FP_CONTRACT|FENV_ACCESS)|float_control|fp_contract|fenv_access|clang\s+fp"
+    r"|GCC\s+optimize|optimize)\b"
+)
+_OPTIMIZE_ATTRIBUTE = re.compile(r"__attribute__\s*\(\(\s*optimize|\[\[\s*gnu::optimize")
+_INTRINSIC = re.compile(
+    r"\b(?:_mm\d*_\w+|__m(?:64|128|256|512)\w*|__builtin_(?:ia32|neon|aarch64)_\w+"
+    r"|v(?:add|sub|mul|div|sqrt|rsqrte|recpe|fma|mla|mls|ld1|st1|dup|get|set|max|min|abs|neg|cvt|c[gl][et]|ceq"
+    r"|and|orr|eor|bsl)\w*_[fsup](?:8|16|32|64))\b"
+)
+_NON_PORTABLE_TYPE = re.compile(r"\b(long|wchar_t)\b")
 
 
 def allows_system_headers(module: Module) -> bool:
@@ -372,6 +399,24 @@ def _read_deviations(source: SourceFile, violations: list[Violation]) -> None:
             )
 
 
+def _check_determinism(source: SourceFile, violations: list[Violation]) -> None:
+    if not source.module.sim_safe or source.area not in ("Public", "Private"):
+        return
+    for number, (line, code) in enumerate(zip(source.lines, source.code_lines), start=1):
+        if _PLATFORM_MATH.search(code):
+            source.flag(violations, number, "DET-1", "Platform math differs in the last bit. Use Nexyl::Math.")
+        if _FLOAT_PRAGMA.match(line) or _OPTIMIZE_ATTRIBUTE.search(code):
+            source.flag(
+                violations, number, "DET-2", "Floating-point behaviour is set by the build, never changed locally."
+            )
+        if not _PREPROCESSOR.match(code) and _INTRINSIC.search(code):
+            source.flag(violations, number, "DET-3", "SIMD is used only through the Nexyl::Math vector types.")
+        for match in _NON_PORTABLE_TYPE.finditer(code):
+            source.flag(
+                violations, number, "DET-12", f"'{match.group(1)}' differs between targets. Use the fixed-width types."
+            )
+
+
 def scan_modules(modules: dict[str, Module], repo: Path) -> tuple[list[Violation], int]:
     """Scans all modules. Returns the violations and the number of files scanned."""
     violations: list[Violation] = []
@@ -406,6 +451,7 @@ def scan_modules(modules: dict[str, Module], repo: Path) -> tuple[list[Violation
             _check_platform_conditionals(source, violations)
             _check_allocation(source, violations)
             _check_work_markers(source, violations)
+            _check_determinism(source, violations)
 
     return violations, file_count
 
