@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Nexyl/Base/Config.h>
+#include <Nexyl/Base/Std/Bit.h>
 #include <Nexyl/Base/Std/CStdDef.h>
 #include <Nexyl/Base/Std/CStdInt.h>
 
@@ -48,5 +50,6 @@ using isize = std::ptrdiff_t;
 static_assert(sizeof(f32) == 4, "f32 must be IEEE-754 binary32");
 static_assert(sizeof(f64) == 8, "f64 must be IEEE-754 binary64");
 static_assert(sizeof(usize) == 8 && sizeof(void*) == 8, "Nexyl supports 64-bit targets only");
+static_assert(std::endian::native == std::endian::little, "Nexyl supports little-endian targets only");
 
 } // namespace Nexyl

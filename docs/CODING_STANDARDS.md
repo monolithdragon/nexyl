@@ -113,7 +113,7 @@ The runtime does not use the C++ standard library or the C runtime library, with
 |---|---|---|
 | `<cstddef>` | Fundamental size and pointer types, `offsetof` | `usize`, `isize` |
 | `<cstdint>` | Fixed-width integer types | `u8` … `u64`, `i8` … `i64` |
-| `<new>` | Placement new, `launder` | `Memory` construction helpers |
+| `<new>` | Placement new, `launder` | `ConstructAt`, `DestroyAt` (`Base/Construct.h`) |
 | `<initializer_list>` | Brace initialization is tied to this type by the language | `InitializerList<T>` |
 | `<compare>` | Result types of three-way comparison | Nexyl ordering aliases |
 | `<type_traits>` | Many traits are compiler intrinsics | Nexyl trait aliases and concepts |
@@ -123,6 +123,9 @@ The runtime does not use the C++ standard library or the C runtime library, with
 | `<atomic>` | Portable atomics | `Atomic<T>` |
 | `<bit>` | Bit casts and bit counting intrinsics | `BitCast`, bit utilities |
 | `<limits>` | Numeric limits | Nexyl numeric constants |
+| `<emmintrin.h>` (x64), `<arm_neon.h>` (ARM64) | The correctly rounded square-root instruction has no portable spelling (D-33) | `SquareRoot` (`Base/FloatingPoint.h`); SIMD types later |
+
+One part of the C runtime cannot be avoided: compilers emit calls to `memcpy`, `memmove`, `memset` and `memcmp` on their own, for example to copy large structures, so every binary links them. `Memory` declares these four functions itself, in one private file, without including `<string.h>`, and exposes them as `Memory::Copy`, `Memory::Move`, `Memory::Set` and `Memory::Compare` (rule STL-4). No other C runtime function is used.
 
 ### 4.2 Rules
 
@@ -150,10 +153,10 @@ The runtime does not use the C++ standard library or the C runtime library, with
 
 ### 5.2 Result and Error
 
-- `Result<T, E = Error>` holds either a value or an error. The type is `[[nodiscard]]`; a result cannot be dropped silently.
-- `Error` is a small trivially copyable value: an `ErrorCode` (module ID in the high 16 bits, module-specific code in the low 16 bits) and a 32-bit detail value such as an OS error number. Development builds additionally capture the source location. Creating an error never allocates.
-- Each module declares its codes as `enum class <Module>Error : u16` in `<Module>Errors.h`. Module IDs are assigned in `Base`.
-- `Option<T>` expresses "absent is a normal outcome". It is not an error channel.
+- `Result<T, E = Error>` holds either a value or an error. The type is `[[nodiscard]]`; a result cannot be dropped silently. It converts implicitly from `T` and from `E`, so a function returns either directly. `Result<void, E>` is default-constructed as success: `return {};`.
+- `Error` is a small trivially copyable value: an `ErrorCode` (module ID in the high 16 bits, module-specific code in the low 16 bits) and a 32-bit detail value such as an OS error number. When `NX_ERROR_LOCATIONS` is 1 (the default without `NDEBUG`), it also records the file and line where it was created; this changes its layout, so the setting is part of the Tier 1 build fingerprint. Creating an error never allocates. Create one explicitly: `return Error(MemoryError::OutOfMemory);`.
+- Each module declares its codes as `enum class <Module>Error : u16` in `<Module>Errors.h`, starting at 1, because 0 means success. Next to the enumeration it defines `constexpr ModuleId GetErrorModule(<Module>Error)`, which the `ErrorEnum` concept requires. A module's `ModuleId` is added to `Base/Error.h` when the module is created; an assigned ID never changes and is never reused.
+- `Option<T>` expresses "absent is a normal outcome". It is not an error channel. Its empty state is `kNone`.
 
 ### 5.3 Propagation
 
@@ -161,8 +164,8 @@ Two macros propagate failures in standard C++ (no compiler extensions):
 
 | Macro | Use |
 |---|---|
-| `NX_TRY(expression)` | Evaluates a `Result<void, Error>`; returns the error from the enclosing function on failure. |
-| `NX_TRY_ASSIGN(target, expression)` | Evaluates a `Result<T, Error>`; on success assigns or initialises `target` with the value, otherwise returns the error. |
+| `NX_TRY(expression)` | Evaluates a `Result`; returns the error from the enclosing function on failure and discards any value. |
+| `NX_TRY_ASSIGN(declaration, expression)` | Evaluates a `Result<T, Error>`; on success declares `declaration` and direct-initialises it with the value, otherwise returns the error. At most one per source line. |
 
 ```cpp
 Result<Mesh, Error> LoadMesh(StringView path, IAllocator& allocator) {
@@ -196,6 +199,8 @@ Result<Mesh, Error> LoadMesh(StringView path, IAllocator& allocator) {
 | `NX_ASSUME(condition)` | Optimiser hint | Only with measured benefit. |
 | `NX_FATAL(message)` | Yes | Unrecoverable failure; reports and terminates. |
 
+"Shipping builds" means builds with `NDEBUG`; `NX_ASSERTS_ENABLED` can override the default. A failed check calls the handler installed with `SetAssertHandler`, which decides whether to break into the debugger, continue or abort. Without a handler the process terminates at once, without calling the operating system or the C runtime.
+
 | ID | Rule | Level |
 |---|---|---|
 | ERR-9 | The condition of `NX_ASSERT` has no side effects. | CI |
@@ -221,7 +226,7 @@ Result<Mesh, Error> LoadMesh(StringView path, IAllocator& allocator) {
 
 | ID | Rule | Level |
 |---|---|---|
-| OWN-1 | Global `new`, `delete`, `malloc` and `free` are not used. Objects are created with `MakeUnique`, `MakeRef`, system factories, or `NX_NEW` / `NX_DELETE` inside low-level code. | CI |
+| OWN-1 | Global `new`, `delete`, `malloc` and `free` are not used. Objects are created with `MakeUnique`, `MakeRef`, system factories, or `Memory::New` / `Memory::Delete` inside low-level code. | CI |
 | OWN-2 | Every allocation names an allocator chosen by lifetime class (architecture document, section 5.5). Persistent heap allocations carry a tag. | CI |
 | OWN-3 | Order of preference: value, then `Handle`, then `UniquePtr`, then `Ref`. Shared ownership needs a reason. | Review |
 | OWN-4 | References between systems are handles, not pointers. | Review |
@@ -238,7 +243,7 @@ Result<Mesh, Error> LoadMesh(StringView path, IAllocator& allocator) {
 
 | Element | Convention | Example |
 |---|---|---|
-| Namespace | PascalCase; root `Nexyl`; one level per module | `Nexyl::Physics` |
+| Namespace | PascalCase; root `Nexyl`; one level per module. `Base` is the exception: it is the shared vocabulary and declares directly in `Nexyl` | `Nexyl::Physics`, `Nexyl::Result` |
 | Internal namespace | `Detail` (also excluded from reflection) | `Nexyl::Physics::Detail` |
 | Class, struct, enum, alias, concept | PascalCase | `RigidBody`, `BodyType`, `TriviallyRelocatable` |
 | Interface (pure abstract class) | `I` + PascalCase | `IPhysicsSystem` |
@@ -258,6 +263,7 @@ Result<Mesh, Error> LoadMesh(StringView path, IAllocator& allocator) {
 | Macro | `NX_` + UPPER_SNAKE_CASE | `NX_ASSERT` |
 | Export macro | `NX_<MODULE>_API` | `NX_PHYSICS_API` |
 | Primitive aliases | lower-case | `u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 usize isize` |
+| Range-for protocol | lower-case, because the language requires it | `begin()`, `end()` |
 | Cast-like function template | `nx_` + snake_case (the only such exception) | `nx_cast<T>()` |
 | Source file | PascalCase, named after its primary type | `RigidBody.h`, `RigidBody.cpp`, `RigidBody.inl` |
 | Generated file | `.gen.` infix; never edited | `Physics.reflect.gen.cpp` |
@@ -272,6 +278,7 @@ Result<Mesh, Error> LoadMesh(StringView path, IAllocator& allocator) {
 | NAME-2 | Quantities are SI and carry no unit suffix. A non-SI quantity at a boundary names its unit: `timeoutMs`. | Review |
 | NAME-3 | `struct` is for passive data with public members and no invariant. Everything else is a `class`. | Review |
 | NAME-4 | Names are English, descriptive and unabbreviated except for widely known terms. | Review |
+| NAME-5 | No function, method or type is named like a Windows API macro (for example `CreateDirectory`, `DeleteFile`, `RemoveDirectory`, `LoadLibrary`, `CreateMutex`, `CopyMemory`, `Yield`). Inside files that include `<Windows.h>` such names are silently rewritten to their `A`/`W` variants, which breaks linking. | Review |
 
 Reference example:
 
@@ -327,7 +334,7 @@ enum class BodyType : u8 { Static, Kinematic, Dynamic };
 | CLS-3 | An interface has only pure virtual functions, no data, and a protected non-virtual destructor. | Review |
 | CLS-4 | Overrides are marked `override`. | CI |
 | CLS-5 | Virtual calls do not appear inside per-element hot loops. Interfaces are batch-oriented. | Review |
-| CLS-6 | Single-argument constructors and conversion operators are `explicit`. | CI |
+| CLS-6 | Single-argument constructors and conversion operators are `explicit`. The only exceptions are the converting constructors of the vocabulary wrappers `Result`, `Option` and `Span` from their payload, and of `StringView` from a string literal, which are implicit by design and marked `explicit(false)` to show it. | CI |
 | CLS-7 | Every data member has an initial value. | CI |
 | CLS-8 | Functions returning a value that must be used are `[[nodiscard]]`. | Review |
 | CLS-9 | Narrowing conversions are explicit. | CI |
@@ -529,6 +536,34 @@ The output of clang-format and the findings of clang-tidy differ between version
 
 Test categories: unit, determinism, ABI conformance, fuzz, soak, performance.
 
+### 19.1 Writing unit tests
+
+Unit tests live in a module's `Tests/` directory and use `<Nexyl/Test/Test.h>`:
+
+```cpp
+NX_TEST(Span, SlicesWithinBounds) {
+    const i32 values[] = {1, 2, 3};
+    const Span<const i32> all(values);
+    NX_REQUIRE(all.Size() == 3);
+    NX_CHECK(all.First(2).Size() == 2);
+}
+```
+
+| Macro | Effect on failure |
+|---|---|
+| `NX_TEST(Suite, Name)` | Defines a test. Suite and name are PascalCase; the pair is unique within the module. |
+| `NX_CHECK(condition)` | Reports the condition with its location, marks the test failed, continues. |
+| `NX_REQUIRE(condition)` | Like `NX_CHECK`, then returns from the current function. Only in functions returning `void`. |
+
+There is no registration code and no `main`. The build scans the module's test sources for `NX_TEST` and generates the test table and `main` (`Scripts/build/generate_test_registry.py`), because static registration is forbidden (rule INIT-1). Tests run in source order: files sorted by path, then by line.
+
+| ID | Rule | Level |
+|---|---|---|
+| TEST-8 | `NX_TEST` never appears inside conditional compilation. Configuration-dependent checks go inside the test body. | CI |
+| TEST-9 | Checks are made only from the thread that runs the test. (This is lifted once the runner keeps its per-test state in `Atomic`.) | Review |
+
+A test executable accepts `--filter <text>` (substring of `Suite.Name`), `--list` and `--help`. While tests run, a failed `NX_ASSERT` in the code under test is reported with its location and ends the run.
+
 ---
 
 ## 20. CI gates
@@ -548,14 +583,15 @@ python Scripts/ci/run_workflow.py <preset>
 | Module graph validation (configure step) | Architecture rules R1–R7 | Active |
 | `gate.module_table` | The module table in the architecture document matches the manifests and obeys R1, R2, R4–R6 | Active |
 | `gate.manifests` | CFG-5, HDR-11 | Active |
-| `gate.sources` | HDR-1, HDR-3, HDR-4, HDR-10, STL-1 to STL-3, OWN-1, PLAT-1, PLAT-2, DOC-10, FMT-2 (encoding), DEV-1 | Active |
+| `gate.sources` | HDR-1, HDR-3, HDR-4, HDR-10, STL-1 to STL-3, OWN-1, PLAT-1, PLAT-2, DOC-10, FMT-2 (encoding), DEV-1; in `SIM_SAFE` modules the lexical determinism lint: DET-1, DET-2, DET-3, and the `long` and `wchar_t` of DET-12 | Active |
 | `gate.headers` | HDR-2 | Active |
 | `gate.format` | FMT-1 | Active; needs clang-format |
 | `gate.tidy` | Static-analysis profile (section 22), naming (section 7) | Active; needs clang-tidy |
 | `selftest.module_rules`, `selftest.ci_scripts` | The graph rules and the gate scripts reject deliberately invalid input | Active |
 | Unit tests (`unit.<Module>`) | TEST-2 | Active |
 | Address and undefined-behaviour sanitizer run | CFG-4 | Active as preset `linux-x64-asan`; thread sanitizer arrives with `Jobs` |
-| Determinism lint and matrix | DET-1 to DET-14 | Planned: lint with `Math` (phase 1), matrix with physics (phase 4) |
+| Determinism lint, remaining rules | DET-4 to DET-6, DET-9, DET-10, DET-13; the `char`, raw pointers and bit-fields of DET-12 | Planned: they need type information or the modules they concern |
+| Determinism matrix | The hash chains of the architecture document, section 7.9 | Planned: with physics (phase 4) |
 | Reflection constraints and schema diff | REFL-2 to REFL-6, API-4 | Planned: phase 2, with the header tool |
 | Documentation completeness | DOC-1 to DOC-6 | Planned: phase 2, with the header tool |
 | ABI layout baseline and conformance tests | API-5 | Planned: phase 2 |
@@ -574,6 +610,14 @@ A rule marked CI in this document whose gate is still planned is enforced by rev
 | TP-3 | Only permissive licences may be linked into shipped binaries. | Review |
 | TP-4 | The dependency is hidden behind a Nexyl interface. No third-party type appears in a public header. | CI |
 | TP-5 | Where the library allows it, its allocations are routed to a Nexyl allocator under the `ThirdParty` tag. | Review |
+
+### 21.1 Register
+
+Every approved third-party dependency is listed here (rule TP-2). The version is pinned when the dependency is first introduced.
+
+| Name | Version | Licence | Purpose | Owner | Used by | Status |
+|---|---|---|---|---|---|---|
+| mpmath | 1.4.1, pinned in `Scripts/math/requirements.txt` | BSD-3-Clause | Computes the high-precision reference values for the `Math` tests and the constant tables of `Math` (D-27) | `Math` | The offline generator `Scripts/math/generate_math_tables.py`; its output (`*.gen.cpp`) is committed. Not needed by the runtime, the build or CI. | Approved 2026-11-14, introduced 2026-11-15 |
 
 ---
 

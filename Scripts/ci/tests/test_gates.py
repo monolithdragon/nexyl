@@ -37,6 +37,7 @@ class Repository:
         group: str = "Runtime",
         files: dict[str, str] | None = None,
         manifest: str | None = None,
+        sim_safe: bool = False,
     ) -> Module:
         directory = self.root / "Source" / group / name
         directory.mkdir(parents=True)
@@ -46,7 +47,7 @@ class Repository:
             path = directory / relative
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content, encoding="utf-8")
-        module = Module(name, kind, layer, tuple(dependencies), (), directory.resolve())
+        module = Module(name, kind, layer, tuple(dependencies), (), directory.resolve(), sim_safe=sim_safe)
         self.modules[name] = module
         return module
 
@@ -210,6 +211,18 @@ class SourceRuleTests(GateTestCase):
         )
         self.assertEqual(self.repository.source_rules(), [])
 
+    def test_placement_new_is_not_allocation(self) -> None:
+        self.repository.add_module(
+            "Scene",
+            "Feature",
+            10,
+            files={
+                "Private/A.cpp": "void F(void* p) {\n    ::new (static_cast<void*>(p)) Item(1);\n"
+                "    new (p) ::Ns::Item;\n    int* q = new (int);\n}\n"
+            },
+        )
+        self.assertEqual(self.repository.source_rules(), ["OWN-1"])
+
     def test_memory_module_may_allocate(self) -> None:
         self.repository.add_module("Memory", "Foundation", 2, files={"Private/A.cpp": "int* a = new int;\n"})
         self.assertEqual(self.repository.source_rules(), [])
@@ -309,6 +322,45 @@ class SourceRuleTests(GateTestCase):
             },
         )
         self.assertEqual(self.repository.source_rules(), ["HDR-4"])
+
+
+class DeterminismRuleTests(GateTestCase):
+    def add_math(self, source: str, sim_safe: bool = True) -> None:
+        self.add_base()
+        self.repository.add_module(
+            "Math", "Foundation", 1, ("Base",), files={"Private/Functions.cpp": source}, sim_safe=sim_safe
+        )
+
+    def test_platform_math_pragmas_intrinsics_and_types(self) -> None:
+        self.add_math(
+            "float a = sinf(x);\n"
+            "double b = __builtin_sqrt(y);\n"
+            "#pragma float_control(precise, off)\n"
+            "auto c = _mm_add_ps(p, q);\n"
+            "auto d = vaddq_f32(p, q);\n"
+            "long e = 0;\n"
+            "wchar_t f = 0;\n"
+        )
+        self.assertEqual(
+            self.repository.source_rules(), ["DET-1", "DET-1", "DET-12", "DET-12", "DET-2", "DET-3", "DET-3"]
+        )
+
+    def test_engine_functions_members_and_text_are_accepted(self) -> None:
+        self.add_math(
+            "float a = Sin(x) + Math::Floor(y) + value.sqrt() + pointer->round();\n"
+            "// sinf(x) in a comment, long in prose\n"
+            'const char* text = "sinf(x) long";\n'
+            "i64 big = 9223372036854775807LL;\n"
+        )
+        self.assertEqual(self.repository.source_rules(), [])
+
+    def test_only_simulation_safe_modules_are_checked(self) -> None:
+        self.add_math("long counter = 0;\nfloat a = sinf(x);\n", sim_safe=False)
+        self.assertEqual(self.repository.source_rules(), [])
+
+    def test_deviation_marker_allows_one_line(self) -> None:
+        self.add_math("// NX-DEVIATION(DET-12): the C ABI of this call takes a long.\nlong value = 0;\nlong other = 0;\n")
+        self.assertEqual(self.repository.source_rules(), ["DET-12"])
 
 
 class ManifestRuleTests(GateTestCase):

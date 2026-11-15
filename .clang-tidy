@@ -2,6 +2,8 @@
 #
 # A deliberately conservative starting set, informed by MISRA C++:2023. Checks that recommend
 # standard-library facilities are left out, because the runtime does not use the standard library.
+# For example, modernize-deprecated-headers is excluded: it asks POSIX code in Platform to include
+# <cerrno> or <ctime> instead of the system headers, and those standard headers are banned (rule STL-3).
 # The profile is tightened as real code arrives; every finding is an error.
 ---
 Checks: >
@@ -33,7 +35,6 @@ Checks: >
   misc-unconventional-assign-operator,
   misc-unused-parameters,
   misc-unused-using-decls,
-  modernize-deprecated-headers,
   modernize-redundant-void-arg,
   modernize-use-bool-literals,
   modernize-use-default-member-init,
@@ -74,8 +75,13 @@ CheckOptions:
   readability-identifier-naming.ValueTemplateParameterCase: CamelCase
   readability-identifier-naming.TemplateTemplateParameterCase: CamelCase
   readability-identifier-naming.FunctionCase: CamelCase
-  readability-identifier-naming.FunctionIgnoredRegexp: '^(nx_[a-z0-9_]+|main)$'
+  # C ABI functions, main, and the four C runtime memory functions that Memory declares (CODING_STANDARDS.md, 4.1).
+  readability-identifier-naming.FunctionIgnoredRegexp: '^(nx_[a-z0-9_]+|main|memcpy|memmove|memset|memcmp)$'
   readability-identifier-naming.MethodCase: CamelCase
+  # Range-for requires these two names in lower case.
+  readability-identifier-naming.MethodIgnoredRegexp: '^(begin|end)$'
+  # Members of an anonymous union are named by the access of the class that contains them.
+  readability-identifier-naming.CheckAnonFieldInParent: true
   readability-identifier-naming.ParameterCase: camelBack
   readability-identifier-naming.LocalVariableCase: camelBack
   readability-identifier-naming.LocalConstantCase: camelBack
@@ -104,4 +110,8 @@ CheckOptions:
   # Plain structs expose their fields by design (rule NAME-3)
   cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor: true
   misc-const-correctness.AnalyzeValues: true
+  # Assertion macros negate their condition on purpose; rewriting the condition by De Morgan would not help.
+  readability-simplify-boolean-expr.IgnoreMacros: true
+  # Error-code enumerations and ModuleId are 16 bits wide by contract: they form NxResult at the C ABI.
+  performance-enum-size.EnumIgnoreList: 'Nexyl::ModuleId$;Error$'
 ...

@@ -383,9 +383,19 @@ function(nexyl_add_module)
     get_filename_component(group "${group_directory}" NAME)
     set_target_properties(${target} PROPERTIES FOLDER "${group}")
 
-    # Unit tests: every .cpp under Tests/ is linked into one test executable for the module.
+    # Unit tests: every .cpp under Tests/ is linked into one test executable for the module. Its test table and
+    # main() are generated from the NX_TEST definitions, because static registration is forbidden (rule INIT-1).
     if(test_sources AND NOT type STREQUAL "EXECUTABLE")
-        add_executable(${target}.Tests ${test_sources})
+        set(generator "${CMAKE_SOURCE_DIR}/Scripts/build/generate_test_registry.py")
+        set(registry "${CMAKE_CURRENT_BINARY_DIR}/${target}.TestRegistry.gen.cpp")
+        add_custom_command(
+            OUTPUT "${registry}"
+            COMMAND Python3::Interpreter "${generator}" --repo "${CMAKE_SOURCE_DIR}" --module "${name}"
+                    --output "${registry}" ${test_sources}
+            DEPENDS ${test_sources} "${generator}" "${CMAKE_SOURCE_DIR}/Scripts/ci/nexyl_ci.py"
+            COMMENT "Generating the test registry of ${name}"
+            VERBATIM)
+        add_executable(${target}.Tests ${test_sources} "${registry}")
         target_link_libraries(${target}.Tests PRIVATE ${target})
         target_include_directories(${target}.Tests PRIVATE "${directory}/Tests")
         set_target_properties(${target}.Tests PROPERTIES FOLDER "Tests")
@@ -498,15 +508,17 @@ function(nexyl_finalize_modules)
         endforeach()
     endforeach()
 
-    # R6: the test library is linked into test targets here, never through a manifest.
-    if(TARGET Nexyl.Test)
-        get_property(test_targets GLOBAL PROPERTY NEXYL_TEST_TARGETS)
-        foreach(test_target IN LISTS test_targets)
-            if(NOT test_target STREQUAL "Nexyl.Test.Tests")
-                target_link_libraries(${test_target} PRIVATE Nexyl.Test)
-            endif()
-        endforeach()
+    # R6: the test library is linked into test targets here, never through a manifest. Every test executable
+    # needs it, because its generated main() calls the runner.
+    get_property(test_targets GLOBAL PROPERTY NEXYL_TEST_TARGETS)
+    if(test_targets AND NOT TARGET Nexyl.Test)
+        message(FATAL_ERROR "Modules have unit tests, but the Test module (Source/Runtime/Test) is missing.")
     endif()
+    foreach(test_target IN LISTS test_targets)
+        if(NOT test_target STREQUAL "Nexyl.Test.Tests")
+            target_link_libraries(${test_target} PRIVATE Nexyl.Test)
+        endif()
+    endforeach()
 
     _nexyl_write_module_graph("${CMAKE_BINARY_DIR}/nexyl_modules.json")
     list(LENGTH names module_count)

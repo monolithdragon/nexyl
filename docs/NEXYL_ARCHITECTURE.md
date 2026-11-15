@@ -92,7 +92,9 @@ nexyl/
 ├─ CLAUDE.md                       AI-assistant guide
 ├─ docs/                           Architecture, standards, ABI
 ├─ cmake/                          Build system: module system, compiler settings, conformance probes, gates
+├─ Scripts/build/                  Generators the build runs (test registry)
 ├─ Scripts/ci/                     CI gate scripts, independent of any CI provider
+├─ Scripts/math/                   Offline generator of the Math tables and reference values (mpmath)
 ├─ Abi/include/nexyl/              C ABI headers (the Tier 2 plugin SDK)
 ├─ Source/
 │  ├─ Runtime/<Module>/            Foundation, Service, Contract, Feature, Domain and TestLib modules
@@ -167,10 +169,10 @@ Dependencies listed are direct dependencies. This table is the source of truth; 
 | `Platform` | 1 | Foundation | `Base` |
 | `Memory` | 2 | Foundation | `Base`, `Platform` |
 | `Math` | 2 | Foundation | `Base` |
+| `Test` | 2 | TestLib | `Base`, `Platform` |
 | `Containers` | 3 | Foundation | `Base`, `Memory` |
 | `Log` | 4 | Service | `Base`, `Platform`, `Memory`, `Containers` |
 | `Profile` | 4 | Service | `Base`, `Platform`, `Memory`, `Containers` |
-| `Test` | 4 | TestLib | `Base`, `Platform`, `Memory`, `Containers` |
 | `Jobs` | 4 | Service | `Base`, `Platform`, `Memory`, `Containers` |
 | `Reflection` | 4 | Service | `Base`, `Memory`, `Math`, `Containers` |
 | `Serialization` | 5 | Service | `Base`, `Memory`, `Containers`, `Reflection` |
@@ -224,10 +226,11 @@ Module responsibilities in one line each:
 | Module | Responsibility |
 |---|---|
 | `Base` | Compiler and platform detection, primitive type aliases, assert/log/profile hooks, `Result`, `Option`, `Span`, the only include site of whitelisted standard headers. Allocates nothing, calls no OS function. |
-| `Platform` | Hardware abstraction: virtual memory, threads, synchronisation, files, time, dynamic libraries, sockets, windows, raw input. Its API never allocates; callers supply buffers. |
-| `Memory` | Allocators, tags, budgets, tracking. |
+| `Platform` | Hardware abstraction: virtual memory, threads, synchronisation, files, time, dynamic libraries, sockets, windows, raw input. Its API never allocates; callers supply buffers. Windows, raw input and sockets are added with the modules that use them (`Renderer`/`Input`, `Net`), so that their API follows real needs. |
+| `Memory` | Allocators, tags, budgets, tracking, `UniquePtr`. |
 | `Math` | Deterministic scalar, vector, matrix and quaternion math, transcendental functions, SIMD abstraction. |
-| `Containers` | `Array`, `HashMap`, `String`, `StringView`, smart pointers, handles, handle pools. |
+| `Test` | The engine's unit-test framework: test registration, checks, runner. Uses fixed-size static storage instead of `Memory` and `Containers`, so that every module, including those two, is tested with it. |
+| `Containers` | `Array`, `HashMap`, `HashSet`, `String`, `StringView`, handles, handle pools, sorting and search. |
 | `Jobs` | Work-stealing job scheduler, deterministic parallel-for, job handles. |
 | `Reflection` | Runtime type registry and type-info model; also hosts the generated tables for layer 0–3 types. |
 | `Serialization` | Reflection-driven binary and text archives, schema versioning, migration. |
@@ -349,7 +352,7 @@ flowchart TD
 
 | Would-be cycle | Resolution |
 |---|---|
-| Assert and logging need strings and I/O; strings and I/O need asserts | `Base` owns three function-pointer hooks (assert handler, log sink, profile sink). Higher modules install real implementations at startup. Any module can assert, log and profile while depending only on `Base`. |
+| Assert and logging need strings and I/O; strings and I/O need asserts | `Base` owns three function-pointer hooks (assert handler, log sink, profile sink). Higher modules install real implementations at startup. Any module can assert, log and profile while depending only on `Base`. The assert and log hooks exist; the profile hook is added with the `Profile` module in phase 2, when its event model is designed. |
 | Allocators need OS memory; OS wrappers want to allocate | `Platform` never allocates. Its functions take caller-supplied buffers and spans. |
 | Reflection needs containers; containers want to be reflected | `Reflection` sits above `Containers`. The generated reflection tables for layer 0–3 types are compiled into `Reflection` itself. |
 | Renderer wants entities; ECS wants to draw | Neither knows the other. `Scene` extracts render data from `ECS` into a `RenderFrame` packet that `Renderer` defines. |
@@ -1049,8 +1052,8 @@ The game engine is the first shippable milestone. Each phase ends with a verifia
 | Phase | Content | Exit criterion |
 |---|---|---|
 | 0 — Scaffolding | Repository layout, CMake module system with layer and kind checks, CI gates (include scanner, standard-header scanner, formatting, static analysis), compiler-conformance test | An empty module passes every gate on Windows, Linux and macOS |
-| 1 — Foundation | `Base`, `Platform` (desktop), `Memory`, `Math`, `Containers`, `Test` | Unit and fuzz tests pass; `Math` reproduces reference vectors on all desktop toolchains |
-| 2 — Services | `Jobs`, `Log`, `Profile`, `Reflection` with NHT, `Serialization`, `VFS`, `PluginHost` | A sample module is reflected, serialized, and hot-reloaded; static and dynamic loading both pass |
+| 1 — Foundation | In this order: `Base` core types; the `Platform` subset `Test` needs (console output, monotonic time); `Test`; the rest of `Platform` (desktop); `Memory`; `Containers`. `Math` and the determinism lint in parallel after `Base` | Unit tests pass; `Math` reproduces reference vectors on all desktop toolchains |
+| 2 — Services | `Jobs`, `Log`, `Profile`, `Reflection` with NHT, `Serialization`, `VFS`, `PluginHost`; the fuzz-test suite, first for archive readers and `Containers` | A sample module is reflected, serialized, and hot-reloaded; static and dynamic loading both pass; fuzz tests pass |
 | 3 — Rendering | `RHI.Api`, `RHI.Vulkan`, `RHI.DX12`, `ShaderCompiler`, `Shader`, `Renderer` (minimum) | A lit scene renders through the bindless path on Vulkan and DX12 from the same NXSL source |
 | 4 — World | `ECS`, `Assets`, `Scene`, `Physics.Api`, `Physics.Nexyl` (rigid bodies), `Audio.Api`, `Audio.Nexyl` (minimum), `Input` | A physics scene passes the determinism matrix on desktop |
 | 5 — Tooling | `UI`, `Editor` (minimum), `AssetPipeline`, native gameplay modules with hot reload, then C#, Lua, visual scripting | A small game is built end to end in the editor |
@@ -1091,3 +1094,14 @@ The game engine is the first shippable milestone. Each phase ends with a verifia
 | D-23 | Strict floating-point flags on every module | Removes the risk that the linker gives simulation code a non-strict copy of a shared inline function | Strict flags only on simulation-safe modules |
 | D-24 | CI gates are provider-independent scripts run through CTest | The same command checks a change locally and in CI; the CI configuration stays a thin wrapper that can be replaced | Gate logic written in a CI provider's own configuration language |
 | D-25 | A module's export macro and all compiler flags come from the build system; a manifest is one declarative call | Modules cannot drift from the engine-wide configuration; no generated export headers | Per-module export headers and per-module flags |
+| D-26 | `Test` sits at layer 2 and depends only on `Base` and `Platform`, using fixed-size static storage | Available before `Memory` and `Containers`, so those are tested with the real framework from the start and no interim tests need rewriting | `Test` at layer 4 on top of `Containers` |
+| D-27 | `Math` reference values are computed once at high precision with `mpmath` by an offline script and committed | Fixes the expected bits independently of every compiler and math library; the runtime and CI need no third-party code | Values from one platform's math library; arbitrary-precision code of our own |
+| D-28 | A `MemoryTag` is the owning module's `ModuleId` in the high 16 bits and a module-defined sub-tag in the low 16 bits, like an `ErrorCode`; the sub-tag `0xFFFF` is reserved for third-party code | Tags are unique without a central list, and `Memory` needs no knowledge of the modules above it | A central tag enumeration in `Memory` (it would name every higher module) |
+| D-29 | `Memory` declares the C runtime's `memcpy`, `memmove`, `memset` and `memcmp` itself and wraps them as `Memory::Copy`, `Move`, `Set` and `Compare` | Compilers emit calls to these four functions anyway, so they are linked into every binary; MSVC has no builtins for three of them | Hand-written loops (turned back into those calls, or slow without them); compiler builtins (need compiler conditionals outside `Base`) |
+| D-30 | The first `Heap` is TLSF pools plus pages of their own for large blocks, behind one mutex; `ArenaAllocator` is a chain of blocks from a parent allocator | Covers the allocator catalogue with the least code before `Jobs` exists; size classes and per-thread caches for small blocks follow when measurements show contention, without changing `IAllocator` | Per-thread caches now, designed before the thread roles of `Jobs` are known |
+| D-31 | `HashMap` and `HashSet` hash with the published, public-domain wyhash algorithm (Wang Yi), implemented anew in `Containers`, with a fixed seed | Fast and well distributed; the same bits on every platform, checked against reference values in the tests | FNV-1a (slow on long keys); xxHash64 (more code); per-process random seeds (break reproducible order) |
+| D-32 | `HashMap::Remove` moves the last entry into the gap in constant time; `RemoveOrdered` keeps the insertion order in linear time | Both orders are deterministic, which is what simulation needs; the common case stays O(1) | Tombstones with compaction (holes in iteration, more code); order-preserving removal only (always O(n)) |
+| D-33 | The correctly rounded square root (`SquareRoot` in `Base`) uses the SSE2 and NEON square-root instructions through intrinsics; `<emmintrin.h>` and `<arm_neon.h>` join the standard-header whitelist | IEEE-754 requires the instruction to be correctly rounded on both architectures; `sqrt` and `__builtin_sqrt` compile to a call into the C runtime on MSVC and GCC, which may set `errno` | `sqrt` from the C runtime (a library call, outside the whitelist); a square root in software (slow) |
+| D-34 | Matrices are stored column by column; vectors are columns, multiplied on the right (`m * v`), so `a * b` applies `b` first | A column is a transformed basis vector and the translation is the last column; matches the default matrix layout of GLSL, HLSL and MSL, so matrices reach shaders without a transpose | Row-major storage with row vectors (`v * m`) |
+| D-35 | The f32 transcendental functions of `Math` are evaluated in f64 with a fixed sequence of `+ − × ÷` and rounded once to f32; the trigonometric argument reduction is exact over the whole f32 range. They are within 1 ulp everywhere and correctly rounded for at least 99% of the reference inputs. A fingerprint over 917 504 results guards the bits on every toolchain. SIMD versions come with their first user | Only correctly rounded primitives are used, so every platform produces the same bits; f64 leaves enough guard bits for short polynomials | Correctly rounded f32 functions (much more code); evaluation in f32 alone (error-compensated polynomials, larger error); platform math libraries (differ in the last bit) |
+| D-36 | The fuzz-test suite starts in phase 2 with `Serialization`, covering its archive readers and the `Containers` types | Archive readers are the main fuzz target (TEST-5); one fuzzing infrastructure is built once, for its first real user | Fuzzing `Containers` alone at the end of phase 1 |

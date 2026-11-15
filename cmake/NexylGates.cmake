@@ -23,7 +23,8 @@ function(nexyl_add_gates)
     add_test(NAME gate.manifests
         COMMAND Python3::Interpreter "${ci}/check_manifests.py" ${graph_arguments})
 
-    # Source rules: includes, standard library, platform conditionals, allocation, comment markers.
+    # Source rules: includes, standard library, platform conditionals, allocation, comment markers, and the
+    # determinism lint in SIM_SAFE modules.
     add_test(NAME gate.sources
         COMMAND Python3::Interpreter "${ci}/check_sources.py" ${graph_arguments})
 
