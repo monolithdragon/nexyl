@@ -225,7 +225,7 @@ Module responsibilities in one line each:
 
 | Module | Responsibility |
 |---|---|
-| `Base` | Compiler and platform detection, primitive type aliases, assert/log/profile hooks, `Result`, `Option`, `Span`, the only include site of whitelisted standard headers. Allocates nothing, calls no OS function. |
+| `Base` | Compiler and platform detection, primitive type aliases, assert/log/profile hooks, `Result`, `Option`, `Span`, the formatter (`Format`, checked at compile time) and the log functions built on it, the only include site of whitelisted standard headers. Allocates nothing, calls no OS function. |
 | `Platform` | Hardware abstraction: virtual memory, threads, synchronisation, files, time, dynamic libraries, sockets, windows, raw input. Its API never allocates; callers supply buffers. Windows, raw input and sockets are added with the modules that use them (`Renderer`/`Input`, `Net`), so that their API follows real needs. |
 | `Memory` | Allocators, tags, budgets, tracking, `UniquePtr`. |
 | `Math` | Deterministic scalar, vector, matrix and quaternion math, transcendental functions, SIMD abstraction. |
@@ -352,7 +352,7 @@ flowchart TD
 
 | Would-be cycle | Resolution |
 |---|---|
-| Assert and logging need strings and I/O; strings and I/O need asserts | `Base` owns three function-pointer hooks (assert handler, log sink, profile sink). Higher modules install real implementations at startup. Any module can assert, log and profile while depending only on `Base`. The assert and log hooks exist; the profile hook is added with the `Profile` module in phase 2, when its event model is designed. |
+| Assert and logging need strings and I/O; strings and I/O need asserts | `Base` owns three function-pointer hooks (assert handler, log sink, profile sink). Higher modules install real implementations at startup. Any module can assert, log and profile while depending only on `Base`. Log messages are formatted at the call site by the allocation-free formatter in `Base`, into a buffer on the stack; the `Log` module receives finished text. The assert and log hooks exist; the profile hook is added with the `Profile` module in phase 2, when its event model is designed. |
 | Allocators need OS memory; OS wrappers want to allocate | `Platform` never allocates. Its functions take caller-supplied buffers and spans. |
 | Reflection needs containers; containers want to be reflected | `Reflection` sits above `Containers`. The generated reflection tables for layer 0–3 types are compiled into `Reflection` itself. |
 | Renderer wants entities; ECS wants to draw | Neither knows the other. `Scene` extracts render data from `ECS` into a `RenderFrame` packet that `Renderer` defines. |
