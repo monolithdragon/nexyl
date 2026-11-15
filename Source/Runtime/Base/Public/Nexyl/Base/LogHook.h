@@ -27,6 +27,7 @@ enum class LogLevel : u8 {
 /// One message to log. The text is UTF-8 and is not NUL-terminated.
 /// @threadsafety safe
 /// @since 0.1
+/// @opaque
 struct LogRecord {
     /// Severity. Never `LogLevel::Off`.
     LogLevel level = LogLevel::Info;
@@ -44,6 +45,7 @@ struct LogRecord {
 /// call into the binding it replaced has finished, so the previous owner may then destroy it.
 /// @threadsafety safe
 /// @since 0.1
+/// @opaque
 struct LogSinkBinding {
     /// Receives one record. It may be called from any thread, concurrently, and must not call SetLogSink.
     void (*write)(void* context, const LogRecord& record) = nullptr;

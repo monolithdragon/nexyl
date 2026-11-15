@@ -115,4 +115,20 @@ concept ArrayType = std::is_array_v<T>;
 template <typename T>
 concept SignedIntegral = std::signed_integral<T>;
 
+/// Satisfied when `T` is a class or struct type (not a union).
+/// @since 0.1
+template <typename T>
+concept ClassType = std::is_class_v<T>;
+
+/// Satisfied when `T` can be constructed without arguments.
+/// @since 0.1
+template <typename T>
+concept DefaultConstructible = std::is_default_constructible_v<T>;
+
+/// Satisfied when an object of type `T` can be destroyed where the concept is checked (the destructor exists and
+/// is accessible).
+/// @since 0.1
+template <typename T>
+concept Destructible = std::is_destructible_v<T>;
+
 } // namespace Nexyl

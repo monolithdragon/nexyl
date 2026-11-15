@@ -343,6 +343,7 @@ enum class BodyType : u8 { Static, Kinematic, Dynamic };
 | CLS-12 | Macros are a last resort: assertions, error propagation, export, platform detection, scope exit. A macro never replaces a function, constant or template. | Review |
 | CLS-13 | Code is `const`-correct. | Review |
 | CLS-14 | Public versus private data is a deliberate choice, because reflection gives it meaning (section 15). | Review |
+| TOOL-1 | A `Tool` or `App` module does not write `main`. It defines `int Nexyl::ProgramMain(int argumentCount, const char* const* arguments)`; the build generates `main`, which calls it, as it does for test executables. The arguments are read-only. | CI |
 
 ---
 
@@ -428,7 +429,7 @@ Reflection is automatic (architecture document, section 8). Types are plain C++.
 | REFL-1 | Reflection registration is never written by hand, and no marker macro is added to a type. | CI |
 | REFL-2 | A type in reflection scope has no bit-field, no reference member and no anonymous struct or union. | CI |
 | REFL-3 | A reflected class has at most one reflected base class and is default-constructible (the constructor may be private). | CI |
-| REFL-4 | A raw pointer member of a reflected type is `@transient`. Persistent references use `Handle`, `AssetRef` or an entity reference. | CI |
+| REFL-4 | A raw pointer member of a reflected type is `@transient`, or the type is `@opaque` (reflected by identity only). Persistent references use `Handle`, `AssetRef` or an entity reference. | CI |
 | REFL-5 | Anything that must not be reflected lives in a `Detail` namespace or is excluded in the module manifest. | Review |
 | REFL-6 | Renaming a serialized type, field or enumerator adds `@renamed-from` in the same change. | CI |
 | REFL-7 | Types that need dynamic identity derive from `Object` and are created only through factories. | Review |
@@ -617,6 +618,7 @@ Every approved third-party dependency is listed here (rule TP-2). The version is
 
 | Name | Version | Licence | Purpose | Owner | Used by | Status |
 |---|---|---|---|---|---|---|
+| libclang (LLVM C API, `clang-c/Index.h`) | LLVM major 23, pinned as `REQUIRED_LLVM_MAJOR` in `Scripts/ci/nexyl_ci.py` and checked at configure time (`cmake/NexylThirdParty.cmake`) | Apache-2.0 WITH LLVM-exception | Parses public headers for the header tool, which generates the reflection tables (D-06, D-41) | `Tools.NHT` | The build-time tool `Tools.NHT` only; never linked into a shipped binary. A build requirement on every development machine and CI runner. | Approved 2026-11-15, introduced 2026-11-15 |
 | mpmath | 1.4.1, pinned in `Scripts/math/requirements.txt` | BSD-3-Clause | Computes the high-precision reference values for the `Math` tests and the constant tables of `Math` (D-27) | `Math` | The offline generator `Scripts/math/generate_math_tables.py`; its output (`*.gen.cpp`) is committed. Not needed by the runtime, the build or CI. | Approved 2026-11-14, introduced 2026-11-15 |
 
 ---

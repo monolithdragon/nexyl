@@ -1,4 +1,5 @@
 nexyl_add_module(
     NAME  Base
     KIND  Foundation
-    LAYER 0)
+    LAYER 0
+    REFLECT Public)

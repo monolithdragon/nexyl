@@ -31,6 +31,7 @@ enum class AssertAction : u8 {
 /// Description of a failed check, passed to the assertion handler.
 /// @threadsafety safe
 /// @since 0.1
+/// @opaque
 struct AssertInfo {
     /// Which kind of check failed.
     AssertKind kind = AssertKind::Assertion;
