@@ -26,6 +26,7 @@ include(NexylCompiler)
 include(NexylConformance)
 include(NexylModule)
 include(NexylGates)
+include(NexylThirdParty)
 
 # Python runs the CI gates and the build-time generators (the test registry).
 find_package(Python3 3.10 REQUIRED COMPONENTS Interpreter)
@@ -44,6 +45,9 @@ enable_testing()
 
 # Rule HDR-2: every public header must compile on its own.
 set(CMAKE_VERIFY_INTERFACE_HEADER_SETS ON)
+
+# Third-party dependencies of tools (docs/CODING_STANDARDS.md, section 21).
+nexyl_find_libclang()
 
 nexyl_add_module_directories()
 nexyl_finalize_modules()

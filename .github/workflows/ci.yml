@@ -57,7 +57,8 @@ jobs:
           sudo apt-get install -y ninja-build g++-14
           wget -qO llvm.sh https://apt.llvm.org/llvm.sh
           sudo bash llvm.sh "${NEXYL_LLVM_VERSION}"
-          sudo apt-get install -y "clang-format-${NEXYL_LLVM_VERSION}" "clang-tidy-${NEXYL_LLVM_VERSION}"
+          # libclang is a build requirement: the header tool (Tools.NHT) generates the reflection tables.
+          sudo apt-get install -y "clang-format-${NEXYL_LLVM_VERSION}" "clang-tidy-${NEXYL_LLVM_VERSION}" "libclang-${NEXYL_LLVM_VERSION}-dev"
 
           # The presets name the compilers 'clang++' and 'g++'. Put links with exactly those names first
           # on PATH, so the result does not depend on what the runner image preinstalls.
@@ -71,11 +72,22 @@ jobs:
 
       - name: Install toolchain (macOS)
         if: runner.os == 'macOS'
-        run: brew install ninja
+        run: |
+          brew install ninja
+          # libclang for the header tool. CMake checks that the installation is LLVM ${NEXYL_LLVM_VERSION}.
+          if brew install "llvm@${NEXYL_LLVM_VERSION}"; then
+            echo "NEXYL_LLVM_ROOT=$(brew --prefix "llvm@${NEXYL_LLVM_VERSION}")" >> "${GITHUB_ENV}"
+          else
+            brew install llvm
+            echo "NEXYL_LLVM_ROOT=$(brew --prefix llvm)" >> "${GITHUB_ENV}"
+          fi
 
       - name: Install toolchain (Windows)
         if: runner.os == 'Windows'
-        run: choco install ninja --no-progress -y
+        run: |
+          choco install ninja --no-progress -y
+          # libclang for the header tool. The image may carry another LLVM; install the pinned one over it.
+          choco install llvm --version=23.1.5 --allow-downgrade --no-progress -y
 
       - name: Show tool versions
         shell: bash

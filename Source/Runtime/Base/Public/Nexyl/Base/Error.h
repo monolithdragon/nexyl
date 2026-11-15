@@ -101,6 +101,7 @@ struct ErrorCode {
 /// ```
 /// @threadsafety safe
 /// @since 0.1
+/// @opaque
 class Error final {
 public:
     /// Creates an error from a module's error code.

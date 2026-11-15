@@ -8,6 +8,7 @@ namespace Nexyl {
 /// A position in the source code: file, function and line.
 /// @threadsafety safe
 /// @since 0.1
+/// @opaque
 struct SourceLocation {
     /// Path of the source file, as the compiler spells it.
     const char* file = "";

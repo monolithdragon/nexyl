@@ -20,6 +20,7 @@ namespace Nexyl {
 /// ```
 /// @threadsafety safe
 /// @since 0.1
+/// @opaque
 class ProfileScope final {
 public:
     /// Opens the scope.

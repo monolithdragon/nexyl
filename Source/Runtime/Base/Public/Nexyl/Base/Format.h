@@ -90,6 +90,7 @@ inline constexpr u16 kMaxFormatPrecision = 512;
 /// ```
 /// @threadsafety compatible
 /// @since 0.1
+/// @opaque
 class FormatWriter final {
 public:
     /// Creates a writer that fills `buffer` from its start.

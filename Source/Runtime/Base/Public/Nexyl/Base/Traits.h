@@ -125,4 +125,10 @@ concept ClassType = std::is_class_v<T>;
 template <typename T>
 concept DefaultConstructible = std::is_default_constructible_v<T>;
 
+/// Satisfied when an object of type `T` can be destroyed where the concept is checked (the destructor exists and
+/// is accessible).
+/// @since 0.1
+template <typename T>
+concept Destructible = std::is_destructible_v<T>;
+
 } // namespace Nexyl

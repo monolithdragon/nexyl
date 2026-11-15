@@ -766,6 +766,8 @@ The module manifest sets the reflection scope (`REFLECT` in section 3). The defa
 
 The tool rejects, with a build error, a type in scope that contains a bit-field, a reference member, or an anonymous struct or union. Such a type must be restructured or excluded explicitly.
 
+A field must have a type reflection can store: a fundamental type, an enumeration, a reflected class, a built-in array, `String`, `Array`, `HashMap` or `Handle`. A pointer, a view or another template is a build error unless the field is `@transient` (then it is left out of the table). A class that is not data, such as an allocator, a file or a lock, is marked `@opaque`: it is reflected by identity, name, size and alignment only, and its fields are not examined. A pure interface is opaque automatically.
+
 ### 8.4 Meaning derived from C++ access
 
 No annotation is needed because C++ access specifiers already express intent.
@@ -797,12 +799,13 @@ Metadata that cannot be derived from the type lives in the `///` comment that pu
 | `@category <name>` | Field, type | Grouping in editor panels. |
 | `@renamed-from <old>` | Field, type, enum value | Old name accepted when loading; keeps saved data and `TypeId` references valid. |
 | `@noscript` | Method, type | Not exposed to scripts. |
+| `@opaque` | Class | Reflected by identity only: name, `TypeId`, size and alignment, no fields. For system objects that are not data. |
 
 An unknown or malformed tag is a build error, so metadata cannot silently rot.
 
 ### 8.6 The header tool (NHT)
 
-NexylHeaderTool is a standalone host executable built on libclang. It is a build-time tool: it may use third-party code and the standard library, and it is never linked into the runtime, so there is no bootstrap problem.
+NexylHeaderTool (`Tools.NHT`) is a standalone host executable built on the C API of libclang, pinned to the same LLVM major version as clang-format and clang-tidy (D-41). It is a build-time tool: it may use third-party code and the standard library, and it is never linked into the runtime, so there is no bootstrap problem. The build compiles it first and runs it for every module with `REFLECT Public`, with the module's include directories and definitions; a depfile names every header it read, so a change in any of them regenerates the table. A cross-compiled build will use a prebuilt host tool instead (planned with the mobile ports).
 
 ```mermaid
 flowchart LR
@@ -834,7 +837,7 @@ Design targets, to be validated when the tool exists: an unchanged module adds o
 
 ### 8.7 Generated artefacts
 
-`<Module>.reflect.gen.cpp` is compiled into the module that owns the types (or into `Reflection` for layer 0–3 types). It contains:
+`<Module>.reflect.gen.cpp` is compiled into the module that owns the types (or into `Reflection` for layer 0–3 types, listed by `GetFoundationTypeTables()`). It defines the constant `TypeTable` `Nexyl::Reflection::Generated::k<Module>TypeTable` and contains:
 
 - Constant type, field, method and enum tables with static storage and constant initialisation.
 - Access shims for private members. They use explicit template instantiation, which the language exempts from access checking, so no `friend` declaration and no change to the user's class is required.
@@ -848,13 +851,14 @@ Design targets, to be validated when the tool exists: an unchanged module adds o
 
 | Concept | Definition |
 |---|---|
-| `TypeId` | 64-bit hash of the fully qualified type name. Stable across builds, platforms and compilers. |
+| `TypeId` | 64-bit FNV-1a hash of the canonical type name: the fully qualified name of a class or enumeration; `bool`, `char`, `f32`, `f64`; integers by size and signedness (`u64`, never `unsigned long long`); a template instantiation as its template's name continued over its arguments' identities. Stable across builds, platforms and compilers. |
 | `TypeIdOf<T>()` | Computed at compile time from the compiler-provided type name, normalised to a canonical spelling. Template instantiations compose the template name with the `TypeId`s of their arguments. Generated `static_assert`s verify that every compiler agrees with NHT. |
 | `TypeOf<T>()` | Reference to the constant `TypeInfo` of `T`. |
 | `TypeInfo` | Name, `TypeId`, size, alignment, kind, base type, fields, methods, lifecycle functions (construct, destruct, copy, move), fast-path function pointers, schema version. |
 | `FieldInfo` | Name, type, offset or accessor pair, flags (serialized, hashed, editable, script-visible), metadata from doc tags. |
 | `MethodInfo` | Name, parameter and return types, a typed thunk for scripts. |
-| `TypeRegistry` | Maps `TypeId` to `TypeInfo`. Module tables are attached on load and detached on unload. |
+| `TypeRegistry` | Maps `TypeId` and canonical name to `TypeInfo`. Module tables are attached on load and detached on unload. There is no global registry; the application creates one. |
+| Built-in kinds | Fundamental types, built-in arrays, `String`, `Array<T>`, `HashMap<K, V>` and `Handle<T>` are described by templates in `Reflection` (`IntrinsicTypeInfo<T>()`) with type-erased operations, so no type needs registration code. A generated table lists the instantiations its fields use; the registry keeps every provider, because each binary of a dynamic build has its own copy. |
 
 Run-time cost properties:
 
@@ -1111,3 +1115,6 @@ The game engine is the first shippable milestone. Each phase ends with a verifia
 | D-38 | `f32` and `f64` are formatted exactly with integer arithmetic on the stack: the shortest round-trip form after Steele and White in the Burger and Dybvig formulation, fixed precision by the exact expansion rounded half to even. Fingerprints over random values, computed with the correctly rounded conversions of the Python standard library (`Scripts/format/format_fingerprints.py`), guard the output | Every platform prints the same text; no tables to verify; the text archives of `Serialization` need exact round trips | Ryu or Dragonbox (large tables, more code to verify); the C runtime's `printf` (outside the whitelist, differs between platforms) |
 | D-39 | The first `Jobs` has one mutex-protected deque per worker and priority, plus one shared queue for threads that are not workers; jobs form parent and child trees; a full job pool runs the job on the calling thread | The work-stealing model of section 6.2 with code whose correctness the available tools (sanitizers without a thread sanitizer preset) can show; lock-free Chase-Lev deques replace the locks when measurements show contention, without changing the API, like D-30 | Lock-free deques now; a general dependency graph before `ECS` shows what it needs; terminating when the pool is full |
 | D-40 | Profile events go through a `Base` hook as scope begin and end, counter, frame mark and thread name, with names kept as pointers to string literals; the `Profile` module records them in per-thread buffers during a capture and writes Chrome Trace Event JSON | Instrumentation costs one atomic load without a profiler and no lock with one; the file opens in existing viewers (Perfetto UI, `chrome://tracing`) without third-party code in the engine; live streaming and a Tracy adapter can use the same hook later | Live streaming to an own viewer now (needs sockets and a viewer); a Tracy adapter now (third-party code); copying every name (slower) |
+| D-41 | The header tool uses the C API of libclang, pinned to `REQUIRED_LLVM_MAJOR`, and runs in the build for every module with `REFLECT Public`; libclang is a build requirement | A stable ABI and one library; one LLVM version for formatting, analysis and reflection keeps generated tables identical on every machine; build-time generation as section 8.6 plans, with a prebuilt host tool for cross builds later | The Clang C++ API (changes every release); generated files committed to the repository (contradicts build-time generation and hot reload) |
+| D-42 | `@opaque` marks a class reflected by identity only; a field of a type reflection cannot store is a build error unless `@transient`; `String`, `Array`, `HashMap`, `Handle`, built-in arrays and fundamental types are built-in kinds described by templates in `Reflection` | System objects (allocators, files, locks) are not data, and tagging every pointer member `@transient` would only add noise; containers need container semantics, not their private members | Reflecting every class field by field; hand-written descriptions of the containers |
+| D-43 | `TypeId` hashes a canonical name: integers by size and signedness, template instantiations as the template's name continued over the identities of their arguments | Compilers spell fundamental types and template arguments differently; the canonical form gives one identity, which generated `static_assert`s confirm on every compiler | Hashing the compiler's spelling (differs between MSVC, Clang and GCC); hashing the mangled name (differs between ABIs) |

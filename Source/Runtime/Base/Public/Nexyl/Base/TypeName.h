@@ -11,6 +11,7 @@ namespace Nexyl {
 /// The text is not NUL-terminated as far as `size` is concerned; it lives in the binary's constant data.
 /// @threadsafety safe
 /// @since 0.1
+/// @opaque
 struct TypeName {
     /// First character of the name.
     const char* data = "";

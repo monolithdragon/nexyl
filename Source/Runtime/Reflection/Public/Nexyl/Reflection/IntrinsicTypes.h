@@ -30,7 +30,9 @@ template <typename T>
     if constexpr (DefaultConstructible<T>) {
         lifecycle.construct = [](void* object) { ConstructAt<T>(object); };
     }
-    lifecycle.destruct = [](void* object) { DestroyAt(static_cast<T*>(object)); };
+    if constexpr (Destructible<T>) {
+        lifecycle.destruct = [](void* object) { DestroyAt(static_cast<T*>(object)); };
+    }
     if constexpr (CopyConstructible<T>) {
         lifecycle.copy = [](void* destination, const void* source) {
             ConstructAt<T>(destination, *static_cast<const T*>(source));

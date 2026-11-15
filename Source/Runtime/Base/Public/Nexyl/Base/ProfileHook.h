@@ -23,6 +23,7 @@ enum class ProfileEventKind : u8 {
 /// One profile event. The receiver adds the time and the thread.
 /// @threadsafety safe
 /// @since 0.1
+/// @opaque
 struct ProfileEvent {
     /// What the event marks.
     ProfileEventKind kind = ProfileEventKind::ScopeBegin;
@@ -38,6 +39,7 @@ struct ProfileEvent {
 /// The function that receives profile events, with the context it needs.
 /// @threadsafety safe
 /// @since 0.1
+/// @opaque
 struct ProfileSinkBinding {
     /// Receives one event. It may be called from any thread, concurrently, and must be fast: it runs inside
     /// every instrumented scope.
